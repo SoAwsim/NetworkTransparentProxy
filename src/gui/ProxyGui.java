@@ -1,10 +1,13 @@
 package gui;
 
+import HTTPProxy.ProxyServer;
+
 import javax.swing.*;
 import java.awt.*;
 
 public class ProxyGui {
     private JLabel proxyStatus;
+    private Thread serverThread;
 
     public ProxyGui() {
         JFrame mainWindow = new JFrame("Transparent Proxy");
@@ -21,12 +24,19 @@ public class ProxyGui {
         JMenuItem startProxy = new JMenuItem("Start");
         startProxy.addActionListener(e -> {
             /* TODO implement proxy start logic*/
+            if (serverThread == null) {
+                serverThread = new ProxyServer();
+            }
+            if (!serverThread.isAlive()) {
+                serverThread.start();
+            }
             proxyStatus.setText("Proxy Server is Running...");
         });
 
         JMenuItem stopProxy = new JMenuItem("Stop");
         stopProxy.addActionListener(e -> {
             /* TODO implement proxy stop logic*/
+            serverThread.interrupt();
             proxyStatus.setText("Proxy Server is Stopped...");
         });
 
