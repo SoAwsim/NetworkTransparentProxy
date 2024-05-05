@@ -1,15 +1,17 @@
 package gui;
 
 import javax.swing.*;
+import java.awt.*;
 
 public class ProxyGui {
-    private final JFrame mainWindow;
+    private JLabel proxyStatus;
 
     public ProxyGui() {
-        this.mainWindow = new JFrame("Transparent Proxy");
-        this.mainWindow.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        this.mainWindow.setSize(800, 450);
-        this.mainWindow.setResizable(true);
+        JFrame mainWindow = new JFrame("Transparent Proxy");
+        mainWindow.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        mainWindow.setSize(800, 450);
+        mainWindow.setResizable(true);
+        mainWindow.setLayout(new GridBagLayout());
 
         JMenuBar menuBar = new JMenuBar();
 
@@ -17,24 +19,39 @@ public class ProxyGui {
         JMenu helpMenu = new JMenu("Help");
 
         JMenuItem startProxy = new JMenuItem("Start");
-        startProxy.addActionListener(e -> {/* TODO */});
+        startProxy.addActionListener(e -> {
+            /* TODO implement proxy start logic*/
+            proxyStatus.setText("Proxy Server is Running...");
+        });
 
         JMenuItem stopProxy = new JMenuItem("Stop");
-        stopProxy.addActionListener(e -> {/* TODO */});
+        stopProxy.addActionListener(e -> {
+            /* TODO implement proxy stop logic*/
+            proxyStatus.setText("Proxy Server is Stopped...");
+        });
 
         JMenuItem createReport = new JMenuItem("Report");
-        createReport.addActionListener(e -> {/* TODO */});
+        createReport.addActionListener(e -> {
+            /* TODO implement logging component*/
+        });
 
         JMenuItem filterHost = new JMenuItem("Add host to filter");
-        filterHost.addActionListener(e -> {/* TODO */});
+        filterHost.addActionListener(e -> {
+            /* TODO implement filtering logic*/
+        });
 
         JMenuItem displayFilter = new JMenuItem("Display current filtered host");
-        displayFilter.addActionListener(e -> {/* TODO */});
+        displayFilter.addActionListener(e -> {
+            /* TODO implement filtering logic*/
+        });
 
         JMenuItem exitApp = new JMenuItem("Exit");
-        exitApp.addActionListener(e -> {/* TODO */});
+        exitApp.addActionListener(e -> {
+            /* TODO implement proxy stop logic */
+            System.exit(0);
+        });
 
-        fileMenu.add(stopProxy);
+        fileMenu.add(startProxy);
         fileMenu.add(stopProxy);
         fileMenu.add(createReport);
         fileMenu.add(filterHost);
@@ -43,7 +60,7 @@ public class ProxyGui {
 
         JMenuItem aboutMenuItem = new JMenuItem("About");
         aboutMenuItem.addActionListener(e -> JOptionPane.showMessageDialog(
-                this.mainWindow,
+                mainWindow,
                 "Name Surname: Oğuzhan İçelliler\nSchool Number: 20200702042\nEmail: oguzhan.icelliler@std.yeditepe.edu.tr",
                 "Developer Information",
                 JOptionPane.INFORMATION_MESSAGE)
@@ -54,7 +71,13 @@ public class ProxyGui {
         menuBar.add(fileMenu);
         menuBar.add(helpMenu);
 
-        this.mainWindow.setJMenuBar(menuBar);
-        this.mainWindow.setVisible(true);
+        mainWindow.setJMenuBar(menuBar);
+
+        JPanel panel = new JPanel();
+        proxyStatus = new JLabel("Proxy Server is Stopped...");
+
+        panel.add(proxyStatus);
+        mainWindow.add(panel);
+        mainWindow.setVisible(true);
     }
 }
