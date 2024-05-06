@@ -5,13 +5,14 @@ import HTTPProxy.ProxyServer;
 import javax.swing.*;
 import java.awt.*;
 
-public class ProxyGui {
+public class ProxyGui implements ErrorDisplay {
+    private final JFrame mainWindow;
     private JLabel proxyStatus;
     private Thread serverThread;
     private ProxyServer httpProxy;
 
     public ProxyGui() {
-        JFrame mainWindow = new JFrame("Transparent Proxy");
+        mainWindow = new JFrame("Transparent Proxy");
         mainWindow.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         mainWindow.setSize(800, 450);
         mainWindow.setResizable(true);
@@ -26,16 +27,24 @@ public class ProxyGui {
         startProxy.addActionListener(e -> {
             /* TODO implement proxy start logic*/
             if (serverThread == null) {
-                httpProxy = new ProxyServer();
+                httpProxy = new ProxyServer(this);
                 serverThread = new Thread(httpProxy);
                 serverThread.start();
+                proxyStatus.setText("Proxy Server is Running...");
             }
             else if (!serverThread.isAlive()) {
                 serverThread = new Thread(httpProxy);
                 httpProxy.initSock();
                 serverThread.start();
+                proxyStatus.setText("Proxy Server is Running...");
             }
-            proxyStatus.setText("Proxy Server is Running...");
+            else {
+                JOptionPane.showMessageDialog(mainWindow,
+                        "Server already running",
+                        "Info",
+                        JOptionPane.INFORMATION_MESSAGE
+                );
+            }
         });
 
         JMenuItem stopProxy = new JMenuItem("Stop");
@@ -94,5 +103,20 @@ public class ProxyGui {
         panel.add(proxyStatus);
         mainWindow.add(panel);
         mainWindow.setVisible(true);
+    }
+
+    @Override
+    public void showExceptionWindow(Exception e) {
+        // Are we the EDT thread?
+        if (!SwingUtilities.isEventDispatchThread()) {
+            SwingUtilities.invokeLater(() -> showExceptionWindow(e));
+        }
+        // If we are the EDT thread show error dialog
+        JOptionPane.showMessageDialog(
+                mainWindow,
+                e.getMessage(),
+                e.toString(),
+                JOptionPane.ERROR_MESSAGE
+        );
     }
 }

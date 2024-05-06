@@ -1,18 +1,18 @@
 package HTTPProxy;
 
-import gui.ProxyGui;
+import gui.ErrorDisplay;
 
 import java.io.IOException;
 import java.net.*;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 // curl --proxy localhost:8080 --head http://www.google.com
 
 public class ProxyServer implements Runnable {
     private ServerSocket ServerSock;
+    private final ErrorDisplay edManager;
 
-    public ProxyServer() {
+    public ProxyServer(ErrorDisplay ed) {
+        this.edManager = ed;
         this.initSock();
     }
     @Override
@@ -26,8 +26,9 @@ public class ProxyServer implements Runnable {
         catch (SocketException se) {
             System.out.println("Socket closed shutting down server");
         }
-        catch (Exception e) {
-            e.printStackTrace();
+        catch (IOException e) {
+            // TODO Handle this better
+            edManager.showExceptionWindow(e);
         }
     }
 
@@ -36,7 +37,7 @@ public class ProxyServer implements Runnable {
             try {
                 ServerSock = new ServerSocket(8080);
             } catch (IOException e) {
-                throw new RuntimeException(e);
+                edManager.showExceptionWindow(e);
             }
         }
     }
@@ -47,7 +48,7 @@ public class ProxyServer implements Runnable {
                 ServerSock.close();
                 ServerSock = null;
             } catch (IOException e) {
-                e.printStackTrace();
+                edManager.showExceptionWindow(e);
             }
         }
     }
