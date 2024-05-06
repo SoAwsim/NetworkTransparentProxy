@@ -87,8 +87,8 @@ public class ProxyGui implements ErrorDisplay {
                 mainWindow,
                 "Name Surname: Oğuzhan İçelliler\nSchool Number: 20200702042\nEmail: oguzhan.icelliler@std.yeditepe.edu.tr",
                 "Developer Information",
-                JOptionPane.INFORMATION_MESSAGE)
-        );
+                JOptionPane.INFORMATION_MESSAGE
+        ));
 
         helpMenu.add(aboutMenuItem);
 

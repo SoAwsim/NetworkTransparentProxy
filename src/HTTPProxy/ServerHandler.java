@@ -4,7 +4,7 @@ import java.io.*;
 import java.net.*;
 import java.util.*;
 
-public class ServerHandler extends Thread {
+public class ServerHandler implements Runnable {
 
     private Socket conSock;
     private DataInputStream dIS;
@@ -39,6 +39,7 @@ public class ServerHandler extends Thread {
 
         MimeHeader mH = new MimeHeader(restHeader);
 
+        // TODO fix this, should return 40x on invalid URL
         URL url = null;
         try {
             url = new URL(fullpath);
@@ -111,6 +112,7 @@ public class ServerHandler extends Thread {
 
         conSock.close();
     }
+
     public void handleGet(String domain, String shortpath, MimeHeader mH) throws Exception {
 
         String constructedRequest = "GET " + shortpath + " HTTP/1.1\r\n" + mH;
