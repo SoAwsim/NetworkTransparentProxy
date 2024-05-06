@@ -110,6 +110,7 @@ public class ProxyGui implements ErrorDisplay {
         // Are we the EDT thread?
         if (!SwingUtilities.isEventDispatchThread()) {
             SwingUtilities.invokeLater(() -> showExceptionWindow(e));
+            return;
         }
         // If we are the EDT thread show error dialog
         JOptionPane.showMessageDialog(
