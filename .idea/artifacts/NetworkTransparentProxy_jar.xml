@@ -1,0 +1,8 @@
+<component name="ArtifactManager">
+  <artifact type="jar" name="NetworkTransparentProxy:jar">
+    <output-path>$PROJECT_DIR$/out/artifacts/NetworkTransparentProxy_jar</output-path>
+    <root id="archive" name="NetworkTransparentProxy.jar">
+      <element id="module-output" name="NetworkTransparentProxy" />
+    </root>
+  </artifact>
+</component>
