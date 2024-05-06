@@ -8,6 +8,7 @@ import java.awt.*;
 public class ProxyGui {
     private JLabel proxyStatus;
     private Thread serverThread;
+    private ProxyServer httpProxy;
 
     public ProxyGui() {
         JFrame mainWindow = new JFrame("Transparent Proxy");
@@ -25,9 +26,13 @@ public class ProxyGui {
         startProxy.addActionListener(e -> {
             /* TODO implement proxy start logic*/
             if (serverThread == null) {
-                serverThread = new ProxyServer();
+                httpProxy = new ProxyServer();
+                serverThread = new Thread(httpProxy);
+                serverThread.start();
             }
-            if (!serverThread.isAlive()) {
+            else if (!serverThread.isAlive()) {
+                serverThread = new Thread(httpProxy);
+                httpProxy.initSock();
                 serverThread.start();
             }
             proxyStatus.setText("Proxy Server is Running...");
@@ -36,7 +41,7 @@ public class ProxyGui {
         JMenuItem stopProxy = new JMenuItem("Stop");
         stopProxy.addActionListener(e -> {
             /* TODO implement proxy stop logic*/
-            serverThread.interrupt();
+            httpProxy.closeSock();
             proxyStatus.setText("Proxy Server is Stopped...");
         });
 
