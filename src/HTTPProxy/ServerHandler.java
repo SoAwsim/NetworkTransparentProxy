@@ -306,15 +306,16 @@ public class ServerHandler implements Runnable {
                     // Read chunk
                     byte[] currentChunk = dataIn.readNBytes(currentChunkSize);
                     totalSize += currentChunkSize;
+                    currentChunkSize = 0;
                     httpContent.add(currentChunk);
                     continue;
                 }
                 tempSizeStorage[sizeIndex++] = currentByte;
                 totalSize++;
             }
-            catch (IndexOutOfBoundsException e) {
+            /*catch (IndexOutOfBoundsException e) {
                 throw new IOException("Chunk Size Buffer Limit Exceeded");
-            }
+            }*/
             catch (NumberFormatException e) {
                 throw new IOException("Invalid Chunk Size");
             }
