@@ -262,10 +262,6 @@ public class ServerHandler implements Runnable {
                     try {
                         hexSize = new String (tempSizeStorage, 0, sizeIndex);
                         currentChunkSize = Integer.parseInt(hexSize, 16) + 2;
-                        // Are we in the last segment?
-                        /*if (currentChunkSize == 2) {
-                            size = 512; // For other optional parameters after the content
-                        }*/
                         currentChunk = new byte[currentChunkSize];
                     }
                     catch (IndexOutOfBoundsException e) {
@@ -330,10 +326,6 @@ public class ServerHandler implements Runnable {
             }
         }
 
-        //totalSize = 0;
-        /*for (byte[] element : httpContent) {
-            totalSize += element.length;
-        }*/
         byte[] final_data = new byte[totalSize];
 
         int i = 0;
