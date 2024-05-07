@@ -251,18 +251,16 @@ public class ServerHandler implements Runnable {
         int sizeIndex = 0;
         int totalSize = 0;
         int currentChunkSize = 0;
-        byte[] currentChunk = null;
         List<byte[]> httpContent = new ArrayList<byte[]>();
 
         while (true) {
             try {
-                byte currentByte = (byte) dataIn.read();
-                if (currentByte == ';' && currentChunk == null) {
+                byte currentByte = dataIn.readByte();
+                if (currentByte == ';' && currentChunkSize == 0) {
                     String hexSize = null;
                     try {
                         hexSize = new String (tempSizeStorage, 0, sizeIndex);
                         currentChunkSize = Integer.parseInt(hexSize, 16) + 2;
-                        currentChunk = new byte[currentChunkSize];
                     }
                     catch (IndexOutOfBoundsException e) {
                         throw new IOException("Invalid Chunk Size");
@@ -274,12 +272,11 @@ public class ServerHandler implements Runnable {
                 // Did we reach end of chunk metadata?
                 if (currentByte == '\n' && tempSizeStorage[sizeIndex - 1] == '\r') {
                     // Do we need to allocate buffer for content?
-                    if (currentChunk == null) {
+                    if (currentChunkSize == 0) {
                         String hexSize = null;
                         try {
                             hexSize = new String(tempSizeStorage, 0, sizeIndex - 1);
                             currentChunkSize= Integer.parseInt(hexSize, 16) + 2;
-                            currentChunk = new byte[currentChunkSize];
                         } catch (IndexOutOfBoundsException e) {
                             throw new IOException("Invalid Chunk Size");
                         }
@@ -289,8 +286,8 @@ public class ServerHandler implements Runnable {
                     if (currentChunkSize == 2) {
                         tempSizeStorage[sizeIndex++] = currentByte;
                         totalSize++;
-                        currentByte = (byte) dataIn.read();
-                        byte nextByte = (byte) dataIn.read();
+                        currentByte = dataIn.readByte();
+                        byte nextByte = dataIn.readByte();
                         // Did we reach content end?
                         if (currentByte == '\r' && nextByte == '\n') {
                             tempSizeStorage[sizeIndex++] = currentByte;
@@ -307,12 +304,9 @@ public class ServerHandler implements Runnable {
                     sizeIndex = 0;
 
                     // Read chunk
-                    for (int i = 0; i < currentChunkSize; i++) {
-                        currentChunk[i] = (byte) dataIn.read();
-                        totalSize++;
-                    }
+                    byte[] currentChunk = dataIn.readNBytes(currentChunkSize);
+                    totalSize += currentChunkSize;
                     httpContent.add(currentChunk);
-                    currentChunk = null;
                     continue;
                 }
                 tempSizeStorage[sizeIndex++] = currentByte;
@@ -329,15 +323,15 @@ public class ServerHandler implements Runnable {
         byte[] final_data = new byte[totalSize];
 
         int i = 0;
-
         for (byte[] element : httpContent) {
             for (byte b : element) {
                 if (b == 0) {
                     break;
-                };
+                }
                 final_data[i++] = b;
             }
         }
+
         return final_data;
     }
 }
