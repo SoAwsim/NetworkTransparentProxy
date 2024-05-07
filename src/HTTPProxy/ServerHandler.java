@@ -253,7 +253,6 @@ public class ServerHandler implements Runnable {
         int currentChunkSize = 0;
         byte[] currentChunk = null;
         List<byte[]> httpContent = new ArrayList<byte[]>();
-        String test;
 
         while (true) {
             try {
@@ -274,7 +273,6 @@ public class ServerHandler implements Runnable {
                     }
                     tempSizeStorage[sizeIndex++] = currentByte;
                     totalSize++;
-                    test = new String(tempSizeStorage, 0, sizeIndex);
                 }
 
                 // Did we reach end of chunk metadata?
@@ -294,23 +292,19 @@ public class ServerHandler implements Runnable {
                     // Are we in the final segment?
                     if (currentChunkSize == 2) {
                         tempSizeStorage[sizeIndex++] = currentByte;
-                        test = new String(tempSizeStorage, 0, sizeIndex);
                         totalSize++;
                         currentByte = (byte) dataIn.read();
                         byte nextByte = (byte) dataIn.read();
                         // Did we reach content end?
                         if (currentByte == '\r' && nextByte == '\n') {
                             tempSizeStorage[sizeIndex++] = currentByte;
-                            test = new String(tempSizeStorage, 0, sizeIndex);
                             tempSizeStorage[sizeIndex++] = nextByte;
-                            test = new String(tempSizeStorage, 0, sizeIndex);
                             totalSize += 2;
                             httpContent.add(tempSizeStorage);
                             break;
                         }
                     }
                     tempSizeStorage[sizeIndex++] = currentByte;
-                    test = new String(tempSizeStorage, 0, sizeIndex);
                     totalSize++;
                     httpContent.add(tempSizeStorage);
                     tempSizeStorage = new byte[512];
@@ -327,7 +321,6 @@ public class ServerHandler implements Runnable {
                 }
                 tempSizeStorage[sizeIndex++] = currentByte;
                 totalSize++;
-                test = new String(tempSizeStorage, 0, sizeIndex);
             }
             catch (IndexOutOfBoundsException e) {
                 throw new IOException("Chunk Size Buffer Limit Exceeded");
@@ -353,7 +346,6 @@ public class ServerHandler implements Runnable {
                 final_data[i++] = b;
             }
         }
-        System.out.println(test);
         return final_data;
     }
 }
