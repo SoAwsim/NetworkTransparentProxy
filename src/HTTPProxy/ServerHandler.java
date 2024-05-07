@@ -313,9 +313,9 @@ public class ServerHandler implements Runnable {
                 tempSizeStorage[sizeIndex++] = currentByte;
                 totalSize++;
             }
-            /*catch (IndexOutOfBoundsException e) {
+            catch (IndexOutOfBoundsException e) {
                 throw new IOException("Chunk Size Buffer Limit Exceeded");
-            }*/
+            }
             catch (NumberFormatException e) {
                 throw new IOException("Invalid Chunk Size");
             }
