@@ -23,9 +23,7 @@ public class MimeHeader extends HashMap<String, String> {
     @Override
     public String toString() {
         String str = "";
-        Iterator<String> e = keySet().iterator();
-        while (e.hasNext()) {
-            String key = e.next();
+        for (String key : keySet()) {
             String val = get(key);
             str += key + ": " + val + "\r\n";
         }
