@@ -8,6 +8,10 @@ public class ServerHandler implements Runnable {
     private final Socket conSock;
     private final DataInputStream clientIn;
     private final DataOutputStream clientOut;
+    private Socket serverSocket;
+    private DataInputStream serverIn;
+    private DataOutputStream serverOut;
+    private boolean serverPersistent = true;
 
     private enum httpVer {
         HTTP_1_0,
@@ -68,12 +72,7 @@ public class ServerHandler implements Runnable {
                 MimeHeader mH = new MimeHeader(restHeader);
 
                 String connectionStatus = mH.get("Connection");
-                if (connectionStatus != null && connectionStatus.equalsIgnoreCase("keep-alive")) {
-                    System.out.println("Alive!!!!");
-                    persistent = true;
-                } else {
-                    persistent = false;
-                }
+                persistent = connectionStatus != null && connectionStatus.equalsIgnoreCase("keep-alive");
 
                 URL url;
                 try {
@@ -86,29 +85,35 @@ public class ServerHandler implements Runnable {
                 String domain = url.getHost();
                 String shortPath = url.getPath();
 
-                if (method.equalsIgnoreCase("get")) {
-                    try {
+                try {
+                    if (serverSocket == null) {
+                        serverSocket = new Socket(domain, 80);
+                        serverIn = new DataInputStream(serverSocket.getInputStream());
+                        serverOut = new DataOutputStream(serverSocket.getOutputStream());
+                    }
+
+                    if (method.equalsIgnoreCase("get")) {
                         handleGet(domain, shortPath, mH);
-                    } catch (IOException ex) {
-                        error500();
-                        throw new RuntimeException(ex);
-                    }
-                } else if (method.equalsIgnoreCase("post")) {
-                    try {
+                    } else if (method.equalsIgnoreCase("post")) {
                         handlePost(domain, shortPath, mH);
-                    } catch (IOException ex) {
-                        error500();
-                        throw new RuntimeException(ex);
-                    }
-                } else if (method.equalsIgnoreCase("head")) {
-                    try {
+                    } else if (method.equalsIgnoreCase("head")) {
                         handleHead(domain, shortPath, mH);
-                    } catch (IOException ex) {
-                        error500();
-                        throw new RuntimeException(ex);
+                    } else {
+                        error405();
+                        return;
                     }
-                } else {
-                    error405();
+
+                    if (!serverPersistent) {
+                        serverIn.close();
+                        serverOut.close();
+                        serverSocket.close();
+                        serverSocket = null;
+                    }
+                } catch (BadRequestException ex) {
+                    error400();
+                } catch (IOException ex) {
+                    error500();
+                    throw new RuntimeException(ex);
                 }
             } while (persistent || httpVersion == null);
         } finally {
@@ -117,6 +122,10 @@ public class ServerHandler implements Runnable {
                 clientIn.close();
                 clientOut.close();
                 conSock.close();
+
+                serverIn.close();
+                serverOut.close();
+                serverSocket.close();
             } catch (IOException e) {
                 System.out.println("Error closing the socket!");
             }
@@ -124,37 +133,33 @@ public class ServerHandler implements Runnable {
     }
 
     public void handleHead(String domain, String shortPath, MimeHeader mH) throws IOException {
-        var req = "HEAD " + shortPath + " HTTP/1.1\r\n" + mH;
+        String req = "HEAD " + shortPath + " HTTP/1.1\r\n" + mH;
 
-        var sock = new Socket(domain, 80);
-
-        var d_in = new DataInputStream(sock.getInputStream());
-        var d_out = new DataOutputStream(sock.getOutputStream());
-
-        d_out.writeBytes(req);
+        serverOut.writeBytes(req);
         System.out.println("Sent HEAD request to server");
         System.out.println(req);
 
-        var response = readHeader(d_in);
+        String response = readHeader(serverIn);
 
-        sock.close();
+        if(!response.toLowerCase().contains("keep-alive")) {
+            serverPersistent = false;
+        }
+
         clientOut.writeBytes(response);
     }
 
     public void handleGet(String domain, String shortPath, MimeHeader mH) throws IOException {
-
         String constructedRequest = "GET " + shortPath + " HTTP/1.1\r\n" + mH;
-
-        Socket proxiedSock = new Socket(domain, 80);
-
-        DataInputStream serverIn = new DataInputStream(proxiedSock.getInputStream());
-        DataOutputStream serverOut = new DataOutputStream(proxiedSock.getOutputStream());
 
         serverOut.writeBytes(constructedRequest);
         System.out.println("Sent GET to Web Server:");
         System.out.println(constructedRequest);
 
         String responseHeader = readHeader(serverIn);
+
+        if(!responseHeader.toLowerCase().contains("keep-alive")) {
+            serverPersistent = false;
+        }
 
         byte[] data;
         int contentLengthStart = responseHeader.indexOf("Content-Length: ");
@@ -167,46 +172,48 @@ public class ServerHandler implements Runnable {
             data = new byte[contentSize];
             serverIn.readFully(data);
         }
-        proxiedSock.close();
 
         clientOut.writeBytes(responseHeader);
         clientOut.write(data);
     }
 
     public void handlePost(String domain, String shortPath, MimeHeader mH) throws IOException {
-
-        int postSize = Integer.parseInt(mH.get("Content-Length"));
-
-        byte[] postData = new byte[postSize];
-
-        clientIn.readFully(postData);
+        byte[] data;
+        String contentLength = mH.get("Content-Length");
+        if (contentLength != null) {
+            int postSize = Integer.parseInt(mH.get("Content-Length"));
+            data = new byte[postSize];
+            clientIn.readFully(data);
+        } else if (mH.get("Transfer-Encoding") != null) {
+            data = readChunked(clientIn);
+        } else {
+            throw new BadRequestException("Unknown content delivery method");
+        }
 
         String constructedRequest = "POST " + shortPath + " HTTP/1.1\r\n" + mH;
 
-        Socket proxiedSock = new Socket(domain, 80);
-
-        DataInputStream dIS1 = new DataInputStream(proxiedSock.getInputStream());
-        DataOutputStream dOS1 = new DataOutputStream(proxiedSock.getOutputStream());
-
-        dOS1.writeBytes(constructedRequest);
-        dOS1.write(postData);
+        serverOut.writeBytes(constructedRequest);
+        serverOut.write(data);
 
         System.out.println("Sent POST to Web Server:");
         System.out.println(constructedRequest);
-        System.out.println("Sent POST data " + postSize + " bytes.");
 
-        String responseHeader = readHeader(dIS1);
+        String responseHeader = readHeader(serverIn);
 
-        int contlengthnumindex1 = responseHeader.indexOf("Content-Length: ") + 16;
-        int contlengthnumindex2 = responseHeader.indexOf('\r', contlengthnumindex1);
-        int contlengthnum = Integer.parseInt(
-                responseHeader.substring(contlengthnumindex1, contlengthnumindex2));
+        if(!responseHeader.toLowerCase().contains("keep-alive")) {
+            serverPersistent = false;
+        }
 
-        byte[] data = new byte[contlengthnum];
-
-        dIS1.readFully(data);
-
-        proxiedSock.close();
+        int contentLengthStart = responseHeader.indexOf("Content-Length: ");
+        if (contentLengthStart == -1) { // Transfer encoding detected
+            data = readChunked(serverIn);
+        }
+        else {
+            int contentLengthEnd = responseHeader.indexOf('\r', contentLengthStart);
+            int contentSize = Integer.parseInt(responseHeader.substring(contentLengthStart + 16, contentLengthEnd));
+            data = new byte[contentSize];
+            serverIn.readFully(data);
+        }
 
         clientOut.writeBytes(responseHeader);
         clientOut.write(data);
