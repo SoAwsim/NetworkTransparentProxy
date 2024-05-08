@@ -26,37 +26,14 @@ public class ServerHandler implements Runnable {
             }
         }
         catch (ArrayIndexOutOfBoundsException e) { // Invalid header size return 413
-            String html = "<html><body><h1>413 Entity Too Large</h1></body></html>";
-            String response = "HTTP/1.1 413 Content Too Large\r\n"
-                    + "Date: " + new Date() + "\r\n"
-                    + "Server: CSE471 Proxy\r\n"
-                    + "Content-Length: " + html.length() + "\r\n"
-                    + "Content-Type: text/html; charset=UTF-8\r\n\r\n" + html;
-            try {
-                clientOut.writeBytes(response);
-                clientOut.close();
-            } catch (IOException ex) {
-                // TODO show ui error
-                throw new RuntimeException(ex);
-            }
+            error414();
             return;
         }
         catch (IOException e) {
-            String html = "<html><body><h1>500 Internal Server Error</h1></body></html>";
-            String response = "HTTP/1.1 500 Internal Server Error\r\n"
-                    + "Date: " + new Date() + "\r\n"
-                    + "Server: CSE471 Proxy\r\n"
-                    + "Content-Length: " + html.length() + "\r\n"
-                    + "Content-Type: text/html; charset=UTF-8\r\n\r\n" + html;
-            try {
-                clientOut.writeBytes(response);
-                clientOut.close();
-            } catch (IOException ex) {
-                // TODO show ui error
-                throw new RuntimeException(ex);
-            }
+            error500();
             return;
         }
+
         int methodFinIndex = header.indexOf(' ');
         int pathFinIndex = header.indexOf(' ', methodFinIndex + 1);
         int secondline = header.indexOf('\r') + 2;
@@ -69,61 +46,47 @@ public class ServerHandler implements Runnable {
 
         MimeHeader mH = new MimeHeader(restHeader);
 
-        // TODO fix this, should return 40x on invalid URL
         URL url;
         try {
             url = new URL(fullpath);
         } catch (MalformedURLException e) {
-            e.printStackTrace();
+            error400();
             return;
         }
 
         String domain = url.getHost();
         String shortpath = url.getPath();
 
-        System.out.println(domain);
-        System.out.println(shortpath);
-
         if (method.equalsIgnoreCase("get")) {
             try {
-                if (domain.equals("www.facebook.com")) {
-                    String html = "<html><body><h1>" + domain
-                            + " is not allowed!</h1></body></html>";
-                    String response = "HTTP/1.1 401 Not Authorized\r\n"
-                            + "Date: " + new Date() + "\r\n"
-                            + "Server: CSE471 Proxy\r\n"
-                            + "Content-Length: " + html.length() + "\r\n"
-                            + "Content-Type: text/html; charset=UTF-8\r\n\r\n" + html;
+                handleGet(domain, fullpath, mH);
+            } catch (IOException ex) {
 
-                    clientOut.writeBytes(response);
-                    clientOut.close();
-                } else {
-                    handleGet(domain, fullpath, mH);
-                }
-            } catch (Exception e) {
-                e.printStackTrace();
+                throw new RuntimeException(ex);
             }
-        } else if (method.equalsIgnoreCase("post")) {
+        }
+        else if (method.equalsIgnoreCase("post")) {
             try {
                 handlePost(domain, shortpath, mH);
-            } catch (Exception e) {
-                e.printStackTrace();
+            } catch (IOException ex) {
+                error500();
+                throw new RuntimeException(ex);
             }
-        } else if (method.equalsIgnoreCase("head")) {
+        }
+        else if (method.equalsIgnoreCase("head")) {
             try {
                 handleHead(domain, shortpath, mH);
-            } catch (Exception e) {
-                e.printStackTrace();
+            } catch (IOException ex) {
+                error500();
+                throw new RuntimeException(ex);
             }
         }
         else {
-            System.out.println("other methods");
+            error405();
         }
-
-
     }
 
-    public void handleHead(String domain, String shortpath, MimeHeader mH) throws Exception {
+    public void handleHead(String domain, String shortpath, MimeHeader mH) throws IOException {
         var req = "HEAD " + shortpath + " HTTP/1.1\r\n" + mH;
 
         var sock = new Socket(domain, 80);
@@ -137,41 +100,37 @@ public class ServerHandler implements Runnable {
 
         var response = readHeader(d_in);
 
-        //System.out.println(response);
-
         sock.close();
         clientOut.writeBytes(response);
 
         conSock.close();
     }
 
-    public void handleGet(String domain, String fullpath, MimeHeader mH) throws Exception {
+    public void handleGet(String domain, String fullpath, MimeHeader mH) throws IOException {
 
         String constructedRequest = "GET " + fullpath + " HTTP/1.1\r\n" + mH;
 
         Socket proxiedSock = new Socket(domain, 80);
 
-        DataInputStream dIS1 = new DataInputStream(proxiedSock.getInputStream());
-        DataOutputStream dOS1 = new DataOutputStream(proxiedSock.getOutputStream());
+        DataInputStream serverIn = new DataInputStream(proxiedSock.getInputStream());
+        DataOutputStream serverOut = new DataOutputStream(proxiedSock.getOutputStream());
 
-        dOS1.writeBytes(constructedRequest);
+        serverOut.writeBytes(constructedRequest);
         System.out.println("Sent GET to Web Server:");
         System.out.println(constructedRequest);
 
-        String responseHeader = readHeader(dIS1);
+        String responseHeader = readHeader(serverIn);
 
         byte[] data;
-        int contlengthnum = 0;
-        int contlengthnumindex1 = responseHeader.indexOf("Content-Length: ");
-        if (contlengthnumindex1 == -1) {
-            int transferTypeIndex = responseHeader.indexOf("Transfer-Encoding: ");
-            data = readChunked(dIS1);
+        int contentLengthStart = responseHeader.indexOf("Content-Length: ");
+        if (contentLengthStart == -1) { // Transfer encoding detected
+            data = readChunked(serverIn);
         }
         else {
-            int contlengthnumindex2 = responseHeader.indexOf('\r', contlengthnumindex1);
-            contlengthnum = Integer.parseInt(responseHeader.substring(contlengthnumindex1 + 16, contlengthnumindex2));
-            data = new byte[contlengthnum];
-            dIS1.readFully(data);
+            int contentLengthEnd = responseHeader.indexOf('\r', contentLengthStart);
+            int contentSize = Integer.parseInt(responseHeader.substring(contentLengthStart + 16, contentLengthEnd));
+            data = new byte[contentSize];
+            serverIn.readFully(data);
         }
         proxiedSock.close();
 
@@ -179,10 +138,9 @@ public class ServerHandler implements Runnable {
         clientOut.write(data);
 
         conSock.close();
-
     }
 
-    public void handlePost(String domain, String shortpath, MimeHeader mH) throws Exception {
+    public void handlePost(String domain, String shortpath, MimeHeader mH) throws IOException {
 
         int postSize = Integer.parseInt(mH.get("Content-Length"));
 
@@ -241,7 +199,7 @@ public class ServerHandler implements Runnable {
         int sizeIndex = 0;
         int totalSize = 0;
         int currentChunkSize = 0;
-        List<byte[]> httpContent = new ArrayList<byte[]>();
+        List<byte[]> httpContent = new ArrayList<>();
 
         while (true) {
             try {
@@ -250,7 +208,7 @@ public class ServerHandler implements Runnable {
                 totalSize++;
                 // Detect size with optional parameters
                 if (tempSizeStorage[sizeIndex - 1] == ';' && currentChunkSize == 0) {
-                    String hexSize = null;
+                    String hexSize;
                     try {
                         hexSize = new String (tempSizeStorage, 0, sizeIndex - 1);
                         currentChunkSize = Integer.parseInt(hexSize, 16) + 2;
@@ -264,7 +222,7 @@ public class ServerHandler implements Runnable {
                 if (tempSizeStorage[sizeIndex - 1] == '\n' && tempSizeStorage[sizeIndex - 2] == '\r') {
                     // Do we need to calculate buffer size?
                     if (currentChunkSize == 0) {
-                        String hexSize = null;
+                        String hexSize;
                         try {
                             hexSize = new String(tempSizeStorage, 0, sizeIndex - 2);
                             currentChunkSize= Integer.parseInt(hexSize, 16) + 2;
@@ -317,5 +275,55 @@ public class ServerHandler implements Runnable {
         }
 
         return final_data;
+    }
+
+    private void sendErrorToClient(String response) {
+        try {
+            clientOut.writeBytes(response);
+            clientOut.close();
+        } catch (IOException ex) {
+            // TODO show ui error
+            throw new RuntimeException(ex);
+        }
+    }
+
+    private void error400() {
+        String html = "<html><body><h1>400 Bad Request</h1></body></html>";
+        String response = "HTTP/1.1 400 Bad Request\r\n"
+                + "Date: " + new Date() + "\r\n"
+                + "Server: CSE471 Proxy\r\n"
+                + "Content-Length: " + html.length() + "\r\n"
+                + "Content-Type: text/html; charset=UTF-8\r\n\r\n" + html;
+        sendErrorToClient(response);
+    }
+
+    private void error405() {
+        String html = "<html><body><h1>405 Method Not Allowed</h1></body></html>";
+        String response = "HTTP/1.1 405 Method Not Allowed\r\n"
+                + "Date: " + new Date() + "\r\n"
+                + "Server: CSE471 Proxy\r\n"
+                + "Content-Length: " + html.length() + "\r\n"
+                + "Content-Type: text/html; charset=UTF-8\r\n\r\n" + html;
+        sendErrorToClient(response);
+    }
+
+    private void error414() {
+        String html = "<html><body><h1>413 Entity Too Large</h1></body></html>";
+        String response = "HTTP/1.1 413 Content Too Large\r\n"
+                + "Date: " + new Date() + "\r\n"
+                + "Server: CSE471 Proxy\r\n"
+                + "Content-Length: " + html.length() + "\r\n"
+                + "Content-Type: text/html; charset=UTF-8\r\n\r\n" + html;
+        sendErrorToClient(response);
+    }
+
+    private void error500() {
+        String html = "<html><body><h1>500 Internal Server Error</h1></body></html>";
+        String response = "HTTP/1.1 500 Internal Server Error\r\n"
+                + "Date: " + new Date() + "\r\n"
+                + "Server: CSE471 Proxy\r\n"
+                + "Content-Length: " + html.length() + "\r\n"
+                + "Content-Type: text/html; charset=UTF-8\r\n\r\n" + html;
+        sendErrorToClient(response);
     }
 }
