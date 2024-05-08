@@ -5,41 +5,41 @@ import java.net.*;
 import java.util.*;
 
 public class ServerHandler implements Runnable {
-    private Socket conSock;
-    private DataInputStream dIS;
-    private DataOutputStream dOS;
+    private final Socket conSock;
+    private final DataInputStream clientIn;
+    private final DataOutputStream clientOut;
 
-    public ServerHandler(Socket c) {
+    // Throw IOException to upper level since this Runnable should not execute
+    public ServerHandler(Socket c) throws IOException {
         conSock = c;
-
-        try {
-            dIS = new DataInputStream(conSock.getInputStream());
-            dOS = new DataOutputStream(conSock.getOutputStream());
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-
+        clientIn = new DataInputStream(conSock.getInputStream());
+        clientOut = new DataOutputStream(conSock.getOutputStream());
     }
 
     @Override
     public void run() {
         String header;
         try {
-            header = readHeader(dIS);
+            Thread.sleep(2000);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+        try {
+            header = readHeader(clientIn);
             if (header == null) {
                 throw new IOException("Header Reading Failed");
             }
         }
         catch (ArrayIndexOutOfBoundsException e) { // Invalid header size return 413
-            String html = "<html><body><h1>Entity Too Large</h1></body></html>";
+            String html = "<html><body><h1>413 Entity Too Large</h1></body></html>";
             String response = "HTTP/1.1 413 Content Too Large\r\n"
                     + "Date: " + new Date() + "\r\n"
                     + "Server: CSE471 Proxy\r\n"
                     + "Content-Length: " + html.length() + "\r\n"
                     + "Content-Type: text/html; charset=UTF-8\r\n\r\n" + html;
             try {
-                dOS.writeBytes(response);
-                dOS.close();
+                clientOut.writeBytes(response);
+                clientOut.close();
             } catch (IOException ex) {
                 // TODO show ui error
                 throw new RuntimeException(ex);
@@ -47,22 +47,21 @@ public class ServerHandler implements Runnable {
             return;
         }
         catch (IOException e) {
-            String html = "<html><body><h1>505 Internal Server Error</h1></body></html>";
-            String response = "HTTP/1.1 505 Internal Server Error\r\n"
+            String html = "<html><body><h1>500 Internal Server Error</h1></body></html>";
+            String response = "HTTP/1.1 500 Internal Server Error\r\n"
                     + "Date: " + new Date() + "\r\n"
                     + "Server: CSE471 Proxy\r\n"
                     + "Content-Length: " + html.length() + "\r\n"
                     + "Content-Type: text/html; charset=UTF-8\r\n\r\n" + html;
             try {
-                dOS.writeBytes(response);
-                dOS.close();
+                clientOut.writeBytes(response);
+                clientOut.close();
             } catch (IOException ex) {
                 // TODO show ui error
                 throw new RuntimeException(ex);
             }
             return;
         }
-
         int methodFinIndex = header.indexOf(' ');
         int pathFinIndex = header.indexOf(' ', methodFinIndex + 1);
         int secondline = header.indexOf('\r') + 2;
@@ -76,11 +75,12 @@ public class ServerHandler implements Runnable {
         MimeHeader mH = new MimeHeader(restHeader);
 
         // TODO fix this, should return 40x on invalid URL
-        URL url = null;
+        URL url;
         try {
             url = new URL(fullpath);
         } catch (MalformedURLException e) {
             e.printStackTrace();
+            return;
         }
 
         String domain = url.getHost();
@@ -100,8 +100,8 @@ public class ServerHandler implements Runnable {
                             + "Content-Length: " + html.length() + "\r\n"
                             + "Content-Type: text/html; charset=UTF-8\r\n\r\n" + html;
 
-                    dOS.writeBytes(response);
-                    dOS.close();
+                    clientOut.writeBytes(response);
+                    clientOut.close();
                 } else {
                     handleGet(domain, fullpath, mH);
                 }
@@ -125,6 +125,7 @@ public class ServerHandler implements Runnable {
             System.out.println("other methods");
         }
 
+
     }
 
     public void handleHead(String domain, String shortpath, MimeHeader mH) throws Exception {
@@ -144,7 +145,7 @@ public class ServerHandler implements Runnable {
         //System.out.println(response);
 
         sock.close();
-        dOS.writeBytes(response);
+        clientOut.writeBytes(response);
 
         conSock.close();
     }
@@ -179,8 +180,8 @@ public class ServerHandler implements Runnable {
         }
         proxiedSock.close();
 
-        dOS.writeBytes(responseHeader);
-        dOS.write(data);
+        clientOut.writeBytes(responseHeader);
+        clientOut.write(data);
 
         conSock.close();
 
@@ -192,7 +193,7 @@ public class ServerHandler implements Runnable {
 
         byte[] postData = new byte[postSize];
 
-        dIS.readFully(postData);
+        clientIn.readFully(postData);
 
         String constructedRequest = "POST " + shortpath + " HTTP/1.1\r\n" + mH;
 
@@ -221,8 +222,8 @@ public class ServerHandler implements Runnable {
 
         proxiedSock.close();
 
-        dOS.writeBytes(responseHeader);
-        dOS.write(data);
+        clientOut.writeBytes(responseHeader);
+        clientOut.write(data);
 
         conSock.close();
     }
@@ -239,7 +240,7 @@ public class ServerHandler implements Runnable {
         return new String(headerArr, 0, i);
     }
 
-    private byte[] readChunked(DataInputStream dataIn) throws IOException {
+    private byte[] readChunked(DataInputStream serverIn) throws IOException {
         // 1KB limit for each chunk metadata
         byte[] tempSizeStorage = new byte[1024];
         int sizeIndex = 0;
@@ -249,28 +250,28 @@ public class ServerHandler implements Runnable {
 
         while (true) {
             try {
-                byte currentByte = dataIn.readByte();
+                //byte currentByte = serverIn.readByte();
+                tempSizeStorage[sizeIndex++] = serverIn.readByte();
+                totalSize++;
                 // Detect size with optional parameters
-                if (currentByte == ';' && currentChunkSize == 0) {
+                if (tempSizeStorage[sizeIndex - 1] == ';' && currentChunkSize == 0) {
                     String hexSize = null;
                     try {
-                        hexSize = new String (tempSizeStorage, 0, sizeIndex);
+                        hexSize = new String (tempSizeStorage, 0, sizeIndex - 1);
                         currentChunkSize = Integer.parseInt(hexSize, 16) + 2;
                     }
                     catch (IndexOutOfBoundsException e) {
                         throw new IOException("Invalid Chunk Size");
                     }
-                    tempSizeStorage[sizeIndex++] = currentByte;
-                    totalSize++;
                 }
 
                 // Did we reach end of chunk metadata?
-                if (currentByte == '\n' && tempSizeStorage[sizeIndex - 1] == '\r') {
+                if (tempSizeStorage[sizeIndex - 1] == '\n' && tempSizeStorage[sizeIndex - 2] == '\r') {
                     // Do we need to calculate buffer size?
                     if (currentChunkSize == 0) {
                         String hexSize = null;
                         try {
-                            hexSize = new String(tempSizeStorage, 0, sizeIndex - 1);
+                            hexSize = new String(tempSizeStorage, 0, sizeIndex - 2);
                             currentChunkSize= Integer.parseInt(hexSize, 16) + 2;
                         } catch (IndexOutOfBoundsException e) {
                             throw new IOException("Invalid Chunk Size");
@@ -280,10 +281,8 @@ public class ServerHandler implements Runnable {
                     // Are we in the final segment?
                     if (currentChunkSize == 2) {
                         // Consume rest of the arguments
-                        tempSizeStorage[sizeIndex++] = currentByte;
-                        totalSize++;
                         do {
-                            tempSizeStorage[sizeIndex++] = dataIn.readByte();
+                            tempSizeStorage[sizeIndex++] = serverIn.readByte();
                             totalSize++;
                         } while (tempSizeStorage[sizeIndex - 1] != '\n' || tempSizeStorage[sizeIndex - 2] != '\r'
                                 || tempSizeStorage[sizeIndex - 3] != '\n' || tempSizeStorage[sizeIndex - 4] != '\r');
@@ -291,21 +290,16 @@ public class ServerHandler implements Runnable {
                         break;
                     }
 
-                    tempSizeStorage[sizeIndex] = currentByte;
-                    totalSize++;
                     httpContent.add(tempSizeStorage);
                     tempSizeStorage = new byte[1024];
                     sizeIndex = 0;
 
                     // Read chunk
-                    byte[] currentChunk = dataIn.readNBytes(currentChunkSize);
+                    byte[] currentChunk = serverIn.readNBytes(currentChunkSize);
                     totalSize += currentChunkSize;
                     currentChunkSize = 0;
                     httpContent.add(currentChunk);
-                    continue;
                 }
-                tempSizeStorage[sizeIndex++] = currentByte;
-                totalSize++;
             }
             catch (IndexOutOfBoundsException e) {
                 throw new IOException("Chunk Size Buffer Limit Exceeded");

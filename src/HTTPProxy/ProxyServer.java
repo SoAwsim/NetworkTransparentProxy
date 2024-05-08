@@ -24,7 +24,13 @@ public class ProxyServer implements Runnable {
         try {
             while (true) {
                 Socket conSock = ServerSock.accept();
-                executorThreads.execute(new ServerHandler(conSock));
+                try {
+                    executorThreads.execute(new ServerHandler(conSock));
+                }
+                catch (IOException ex) {
+                    // TODO handle this better
+                    System.out.println("Client connection failed");
+                }
             }
         }
         catch (SocketException se) {
