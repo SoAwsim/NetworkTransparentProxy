@@ -9,85 +9,123 @@ public class ServerHandler implements Runnable {
     private final DataInputStream clientIn;
     private final DataOutputStream clientOut;
 
+    private enum httpVer {
+        HTTP_1_0,
+        HTTP_1_1
+    }
     // Throw IOException to upper level since this Runnable should not execute
     public ServerHandler(Socket c) throws IOException {
         conSock = c;
+        c.setSoTimeout(5);
         clientIn = new DataInputStream(conSock.getInputStream());
         clientOut = new DataOutputStream(conSock.getOutputStream());
+        clientOut.flush();
     }
 
     @Override
     public void run() {
-        String header;
+        boolean persistent = false;
+        httpVer httpVersion = null;
         try {
-            header = readHeader(clientIn);
-            if (header == null) {
-                throw new IOException("Header Reading Failed");
-            }
-        }
-        catch (ArrayIndexOutOfBoundsException e) { // Invalid header size return 413
-            error414();
-            return;
-        }
-        catch (IOException e) {
-            error500();
-            return;
-        }
+            do {
+                String header;
+                try {
+                    header = readHeader(clientIn);
+                    if (header == null) {
+                        throw new IOException("Header Reading Failed");
+                    }
+                } catch (ArrayIndexOutOfBoundsException ex) { // Invalid header size return 413
+                    error414();
+                    return;
+                } catch (SocketTimeoutException ex) {
+                    // Close socket and exit
+                    return;
+                } catch (IOException ex) {
+                    error500();
+                    return;
+                }
 
-        int methodFinIndex = header.indexOf(' ');
-        int pathFinIndex = header.indexOf(' ', methodFinIndex + 1);
-        int secondline = header.indexOf('\r') + 2;
+                int methodFinIndex = header.indexOf(' ');
+                int pathFinIndex = header.indexOf(' ', methodFinIndex + 1);
+                int secondLine = header.indexOf('\r') + 2;
 
-        String method = header.substring(0, methodFinIndex); // GET http://example.com/path HTTP/1.1
-        System.out.println("Log: " + method);
-        String fullpath = header.substring(methodFinIndex + 1, pathFinIndex);
-        System.out.println("Log: " + fullpath);
-        String restHeader = header.substring(secondline);
+                String method = header.substring(0, methodFinIndex); // GET http://example.com/path HTTP/1.1
+                System.out.println("Log: " + method);
+                String fullPath = header.substring(methodFinIndex + 1, pathFinIndex);
+                System.out.println("Log: " + fullPath);
+                String httpStrVersion = header.substring(pathFinIndex + 1, secondLine - 2);
+                System.out.println("HTTP Version: " + httpStrVersion);
+                String restHeader = header.substring(secondLine);
 
-        MimeHeader mH = new MimeHeader(restHeader);
+                if (httpStrVersion.equals("HTTP/1.1")) {
+                    httpVersion = httpVer.HTTP_1_1;
+                } else if (httpStrVersion.equals("HTTP/1.0")) {
+                    httpVersion = httpVer.HTTP_1_0;
+                } else {
+                    error505();
+                    continue;
+                }
 
-        URL url;
-        try {
-            url = new URL(fullpath);
-        } catch (MalformedURLException e) {
-            error400();
-            return;
-        }
+                MimeHeader mH = new MimeHeader(restHeader);
 
-        String domain = url.getHost();
-        String shortpath = url.getPath();
+                String connectionStatus = mH.get("Connection");
+                if (connectionStatus != null && connectionStatus.equalsIgnoreCase("keep-alive")) {
+                    System.out.println("Alive!!!!");
+                    persistent = true;
+                } else {
+                    persistent = false;
+                }
 
-        if (method.equalsIgnoreCase("get")) {
+                URL url;
+                try {
+                    url = new URL(fullPath);
+                } catch (MalformedURLException e) {
+                    error400();
+                    return;
+                }
+
+                String domain = url.getHost();
+                String shortPath = url.getPath();
+
+                if (method.equalsIgnoreCase("get")) {
+                    try {
+                        handleGet(domain, shortPath, mH);
+                    } catch (IOException ex) {
+                        error500();
+                        throw new RuntimeException(ex);
+                    }
+                } else if (method.equalsIgnoreCase("post")) {
+                    try {
+                        handlePost(domain, shortPath, mH);
+                    } catch (IOException ex) {
+                        error500();
+                        throw new RuntimeException(ex);
+                    }
+                } else if (method.equalsIgnoreCase("head")) {
+                    try {
+                        handleHead(domain, shortPath, mH);
+                    } catch (IOException ex) {
+                        error500();
+                        throw new RuntimeException(ex);
+                    }
+                } else {
+                    error405();
+                }
+            } while (persistent || httpVersion == null);
+        } finally {
+            System.out.println("Closing connection from server side");
             try {
-                handleGet(domain, fullpath, mH);
-            } catch (IOException ex) {
-
-                throw new RuntimeException(ex);
+                clientIn.close();
+                clientOut.close();
+                conSock.close();
+            } catch (IOException e) {
+                System.out.println("Error closing the socket!");
             }
-        }
-        else if (method.equalsIgnoreCase("post")) {
-            try {
-                handlePost(domain, shortpath, mH);
-            } catch (IOException ex) {
-                error500();
-                throw new RuntimeException(ex);
-            }
-        }
-        else if (method.equalsIgnoreCase("head")) {
-            try {
-                handleHead(domain, shortpath, mH);
-            } catch (IOException ex) {
-                error500();
-                throw new RuntimeException(ex);
-            }
-        }
-        else {
-            error405();
         }
     }
 
-    public void handleHead(String domain, String shortpath, MimeHeader mH) throws IOException {
-        var req = "HEAD " + shortpath + " HTTP/1.1\r\n" + mH;
+    public void handleHead(String domain, String shortPath, MimeHeader mH) throws IOException {
+        var req = "HEAD " + shortPath + " HTTP/1.1\r\n" + mH;
 
         var sock = new Socket(domain, 80);
 
@@ -102,13 +140,11 @@ public class ServerHandler implements Runnable {
 
         sock.close();
         clientOut.writeBytes(response);
-
-        conSock.close();
     }
 
-    public void handleGet(String domain, String fullpath, MimeHeader mH) throws IOException {
+    public void handleGet(String domain, String shortPath, MimeHeader mH) throws IOException {
 
-        String constructedRequest = "GET " + fullpath + " HTTP/1.1\r\n" + mH;
+        String constructedRequest = "GET " + shortPath + " HTTP/1.1\r\n" + mH;
 
         Socket proxiedSock = new Socket(domain, 80);
 
@@ -136,11 +172,9 @@ public class ServerHandler implements Runnable {
 
         clientOut.writeBytes(responseHeader);
         clientOut.write(data);
-
-        conSock.close();
     }
 
-    public void handlePost(String domain, String shortpath, MimeHeader mH) throws IOException {
+    public void handlePost(String domain, String shortPath, MimeHeader mH) throws IOException {
 
         int postSize = Integer.parseInt(mH.get("Content-Length"));
 
@@ -148,7 +182,7 @@ public class ServerHandler implements Runnable {
 
         clientIn.readFully(postData);
 
-        String constructedRequest = "POST " + shortpath + " HTTP/1.1\r\n" + mH;
+        String constructedRequest = "POST " + shortPath + " HTTP/1.1\r\n" + mH;
 
         Socket proxiedSock = new Socket(domain, 80);
 
@@ -177,16 +211,18 @@ public class ServerHandler implements Runnable {
 
         clientOut.writeBytes(responseHeader);
         clientOut.write(data);
-
-        conSock.close();
     }
 
     public String readHeader(DataInputStream dIS) throws IOException, ArrayIndexOutOfBoundsException {
-        // Apache header limit is 8KB so I also use this limit as well
+        // Apache header limit is 8KB, so I also use this limit as well
         byte[] headerArr = new byte[8192];
         int i = 0;
         do {
+            // readByte throws IOException instead of writing -1 to array so, I use this one
             headerArr[i++] = (byte) dIS.read();
+            if (headerArr[i - 1] == -1) {
+                throw new SocketTimeoutException("Client Disconnected");
+            }
         } while (headerArr[i - 1] != '\n' || headerArr[i - 2] != '\r'
                 || headerArr[i - 3] != '\n' || headerArr[i - 4] != '\r');
 
@@ -203,7 +239,6 @@ public class ServerHandler implements Runnable {
 
         while (true) {
             try {
-                //byte currentByte = serverIn.readByte();
                 tempSizeStorage[sizeIndex++] = serverIn.readByte();
                 totalSize++;
                 // Detect size with optional parameters
@@ -280,7 +315,6 @@ public class ServerHandler implements Runnable {
     private void sendErrorToClient(String response) {
         try {
             clientOut.writeBytes(response);
-            clientOut.close();
         } catch (IOException ex) {
             // TODO show ui error
             throw new RuntimeException(ex);
@@ -324,6 +358,15 @@ public class ServerHandler implements Runnable {
                 + "Server: CSE471 Proxy\r\n"
                 + "Content-Length: " + html.length() + "\r\n"
                 + "Content-Type: text/html; charset=UTF-8\r\n\r\n" + html;
+        sendErrorToClient(response);
+    }
+
+    private void error505() {
+        String response = "HTTP/1.1 505 HTTP Version Not Supported\r\n"
+                + "Date: " + new Date() + "\r\n"
+                + "Server: CSE471 Proxy\r\n"
+                + "Content-Length: 0\r\n"
+                + "Content-Type: text/html; charset=UTF-8\r\n\r\n";
         sendErrorToClient(response);
     }
 }
