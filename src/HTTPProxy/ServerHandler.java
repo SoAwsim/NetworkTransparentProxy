@@ -20,11 +20,6 @@ public class ServerHandler implements Runnable {
     public void run() {
         String header;
         try {
-            Thread.sleep(2000);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-        try {
             header = readHeader(clientIn);
             if (header == null) {
                 throw new IOException("Header Reading Failed");
