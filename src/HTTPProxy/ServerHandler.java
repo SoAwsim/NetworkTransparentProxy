@@ -23,11 +23,11 @@ public class ServerHandler implements Runnable {
 
     @Override
     public void run() {
-        String header = null;
+        String header;
         try {
             header = readHeader(dIS);
-            if (header == null) { // This should not happen but is there just in case
-                throw new ArrayIndexOutOfBoundsException();
+            if (header == null) {
+                throw new IOException("Header Reading Failed");
             }
         }
         catch (ArrayIndexOutOfBoundsException e) { // Invalid header size return 413
@@ -41,7 +41,24 @@ public class ServerHandler implements Runnable {
                 dOS.writeBytes(response);
                 dOS.close();
             } catch (IOException ex) {
-                e.printStackTrace();
+                // TODO show ui error
+                throw new RuntimeException(ex);
+            }
+            return;
+        }
+        catch (IOException e) {
+            String html = "<html><body><h1>505 Internal Server Error</h1></body></html>";
+            String response = "HTTP/1.1 505 Internal Server Error\r\n"
+                    + "Date: " + new Date() + "\r\n"
+                    + "Server: CSE471 Proxy\r\n"
+                    + "Content-Length: " + html.length() + "\r\n"
+                    + "Content-Type: text/html; charset=UTF-8\r\n\r\n" + html;
+            try {
+                dOS.writeBytes(response);
+                dOS.close();
+            } catch (IOException ex) {
+                // TODO show ui error
+                throw new RuntimeException(ex);
             }
             return;
         }
@@ -148,7 +165,7 @@ public class ServerHandler implements Runnable {
         String responseHeader = readHeader(dIS1);
 
         byte[] data;
-        int contlengthnum = 100000;
+        int contlengthnum = 0;
         int contlengthnumindex1 = responseHeader.indexOf("Content-Length: ");
         if (contlengthnumindex1 == -1) {
             int transferTypeIndex = responseHeader.indexOf("Transfer-Encoding: ");
@@ -156,23 +173,10 @@ public class ServerHandler implements Runnable {
         }
         else {
             int contlengthnumindex2 = responseHeader.indexOf('\r', contlengthnumindex1);
-            contlengthnum = Integer.parseInt(
-                    responseHeader.substring(contlengthnumindex1, contlengthnumindex2));
+            contlengthnum = Integer.parseInt(responseHeader.substring(contlengthnumindex1 + 16, contlengthnumindex2));
             data = new byte[contlengthnum];
+            dIS1.readFully(data);
         }
-
-        /*int i = 0;
-        String a = null;
-        while (true) {
-            // TODO implement chunked data!! check for number the \r\n
-            data[i++] = (byte) dIS1.read();
-            a = new String(data, 0, i);
-            if (i == 30000) {
-                break;
-            }
-        }*/
-        //dIS1.readFully(data);
-
         proxiedSock.close();
 
         dOS.writeBytes(responseHeader);
@@ -221,33 +225,23 @@ public class ServerHandler implements Runnable {
         dOS.write(data);
 
         conSock.close();
-
     }
 
-    public String readHeader(DataInputStream dIS) throws ArrayIndexOutOfBoundsException {
+    public String readHeader(DataInputStream dIS) throws IOException, ArrayIndexOutOfBoundsException {
         // Apache header limit is 8KB so I also use this limit as well
         byte[] headerArr = new byte[8192];
         int i = 0;
-
-        while (true) {
-            try {
-                headerArr[i++] = (byte) dIS.read();
-                if (headerArr[i - 1] == '\n' && headerArr[i - 2] == '\r'
-                        && headerArr[i - 3] == '\n' && headerArr[i - 4] == '\r') {
-                    break;
-                }
-
-            }
-            catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
+        do {
+            headerArr[i++] = (byte) dIS.read();
+        } while (headerArr[i - 1] != '\n' || headerArr[i - 2] != '\r'
+                || headerArr[i - 3] != '\n' || headerArr[i - 4] != '\r');
 
         return new String(headerArr, 0, i);
     }
 
     private byte[] readChunked(DataInputStream dataIn) throws IOException {
-        byte[] tempSizeStorage = new byte[512];
+        // 1KB limit for each chunk metadata
+        byte[] tempSizeStorage = new byte[1024];
         int sizeIndex = 0;
         int totalSize = 0;
         int currentChunkSize = 0;
@@ -256,6 +250,7 @@ public class ServerHandler implements Runnable {
         while (true) {
             try {
                 byte currentByte = dataIn.readByte();
+                // Detect size with optional parameters
                 if (currentByte == ';' && currentChunkSize == 0) {
                     String hexSize = null;
                     try {
@@ -271,7 +266,7 @@ public class ServerHandler implements Runnable {
 
                 // Did we reach end of chunk metadata?
                 if (currentByte == '\n' && tempSizeStorage[sizeIndex - 1] == '\r') {
-                    // Do we need to allocate buffer for content?
+                    // Do we need to calculate buffer size?
                     if (currentChunkSize == 0) {
                         String hexSize = null;
                         try {
@@ -284,23 +279,22 @@ public class ServerHandler implements Runnable {
 
                     // Are we in the final segment?
                     if (currentChunkSize == 2) {
+                        // Consume rest of the arguments
                         tempSizeStorage[sizeIndex++] = currentByte;
                         totalSize++;
-                        currentByte = dataIn.readByte();
-                        byte nextByte = dataIn.readByte();
-                        // Did we reach content end?
-                        if (currentByte == '\r' && nextByte == '\n') {
-                            tempSizeStorage[sizeIndex++] = currentByte;
-                            tempSizeStorage[sizeIndex++] = nextByte;
-                            totalSize += 2;
-                            httpContent.add(tempSizeStorage);
-                            break;
-                        }
+                        do {
+                            tempSizeStorage[sizeIndex++] = dataIn.readByte();
+                            totalSize++;
+                        } while (tempSizeStorage[sizeIndex - 1] != '\n' || tempSizeStorage[sizeIndex - 2] != '\r'
+                                || tempSizeStorage[sizeIndex - 3] != '\n' || tempSizeStorage[sizeIndex - 4] != '\r');
+                        httpContent.add(tempSizeStorage);
+                        break;
                     }
-                    tempSizeStorage[sizeIndex++] = currentByte;
+
+                    tempSizeStorage[sizeIndex] = currentByte;
                     totalSize++;
                     httpContent.add(tempSizeStorage);
-                    tempSizeStorage = new byte[512];
+                    tempSizeStorage = new byte[1024];
                     sizeIndex = 0;
 
                     // Read chunk
