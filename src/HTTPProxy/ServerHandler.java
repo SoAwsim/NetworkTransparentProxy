@@ -19,7 +19,6 @@ public class ServerHandler implements Runnable {
         c.setSoTimeout(5);
         clientIn = new DataInputStream(conSock.getInputStream());
         clientOut = new DataOutputStream(conSock.getOutputStream());
-        clientOut.flush();
     }
 
     @Override
