@@ -123,9 +123,11 @@ public class ServerHandler implements Runnable {
                 clientOut.close();
                 conSock.close();
 
-                serverIn.close();
-                serverOut.close();
-                serverSocket.close();
+                if (serverSocket != null) {
+                    serverIn.close();
+                    serverOut.close();
+                    serverSocket.close();
+                }
             } catch (IOException e) {
                 System.out.println("Error closing the socket!");
             }
