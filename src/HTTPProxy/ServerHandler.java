@@ -15,8 +15,8 @@ public class ServerHandler implements Runnable {
     private httpVer clientHttpVersion = null;
 
     private enum httpVer {
-        HTTP_1_0("HTTP/1.1"),
-        HTTP_1_1("HTTP/1.0");
+        HTTP_1_0("HTTP/1.0"),
+        HTTP_1_1("HTTP/1.1");
 
         private final String ver;
 
@@ -83,7 +83,12 @@ public class ServerHandler implements Runnable {
                 MimeHeader mH = new MimeHeader(restHeader);
 
                 String connectionStatus = mH.get("Connection");
-                persistent = connectionStatus != null && connectionStatus.equalsIgnoreCase("keep-alive");
+                if (
+                        (connectionStatus == null && clientHttpVersion == httpVer.HTTP_1_1) ||
+                        (connectionStatus != null && connectionStatus.equalsIgnoreCase("keep-alive"))
+                ) {
+                    persistent = true;
+                }
 
                 URL url;
                 try {
@@ -115,10 +120,7 @@ public class ServerHandler implements Runnable {
                     }
 
                     if (!serverPersistent) {
-                        serverIn.close();
-                        serverOut.close();
-                        serverSocket.close();
-                        serverSocket = null;
+                        return;
                     }
                 } catch (BadRequestException ex) {
                     error400();
@@ -148,7 +150,7 @@ public class ServerHandler implements Runnable {
     }
 
     public void handleHead(String shortPath, MimeHeader mH) throws IOException {
-        String req = "HEAD " + shortPath + " HTTP/1.1\r\n" + mH;
+        String req = "HEAD " + shortPath + " " + clientHttpVersion.toString() +"\r\n" + mH;
 
         serverOut.writeBytes(req);
         System.out.println("Sent HEAD request to server");
@@ -166,7 +168,7 @@ public class ServerHandler implements Runnable {
     }
 
     public void handleGet(String shortPath, MimeHeader mH) throws IOException {
-        String constructedRequest = "GET " + shortPath + " HTTP/1.1\r\n" + mH;
+        String constructedRequest = "GET " + shortPath + " " + clientHttpVersion.toString() +"\r\n" + mH;
 
         serverOut.writeBytes(constructedRequest);
         System.out.println("Sent GET to Web Server:");
@@ -209,7 +211,7 @@ public class ServerHandler implements Runnable {
             throw new BadRequestException("Unknown content delivery method");
         }
 
-        String constructedRequest = "POST " + shortPath + " HTTP/1.1\r\n" + mH;
+        String constructedRequest = "POST " + shortPath + " " + clientHttpVersion.toString() +"\r\n" + mH;
 
         serverOut.writeBytes(constructedRequest);
         serverOut.write(data);
