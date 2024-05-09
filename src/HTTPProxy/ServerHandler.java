@@ -12,10 +12,22 @@ public class ServerHandler implements Runnable {
     private DataInputStream serverIn;
     private DataOutputStream serverOut;
     private boolean serverPersistent = true;
+    private httpVer clientHttpVersion = null;
 
     private enum httpVer {
-        HTTP_1_0,
-        HTTP_1_1
+        HTTP_1_0("HTTP/1.1"),
+        HTTP_1_1("HTTP/1.0");
+
+        private final String ver;
+
+        httpVer(final String ver) {
+            this.ver = ver;
+        }
+
+        @Override
+        public String toString() {
+            return ver;
+        }
     }
     // Throw IOException to upper level since this Runnable should not execute
     public ServerHandler(Socket c) throws IOException {
@@ -28,7 +40,6 @@ public class ServerHandler implements Runnable {
     @Override
     public void run() {
         boolean persistent = false;
-        httpVer httpVersion = null;
         try {
             do {
                 String header;
@@ -61,9 +72,9 @@ public class ServerHandler implements Runnable {
                 String restHeader = header.substring(secondLine);
 
                 if (httpStrVersion.equals("HTTP/1.1")) {
-                    httpVersion = httpVer.HTTP_1_1;
+                    clientHttpVersion = httpVer.HTTP_1_1;
                 } else if (httpStrVersion.equals("HTTP/1.0")) {
-                    httpVersion = httpVer.HTTP_1_0;
+                    clientHttpVersion = httpVer.HTTP_1_0;
                 } else {
                     error505();
                     continue;
@@ -111,11 +122,13 @@ public class ServerHandler implements Runnable {
                     }
                 } catch (BadRequestException ex) {
                     error400();
+                } catch (SocketException ex) { // Did the server close the connection?
+                    return;
                 } catch (IOException ex) {
                     error500();
                     throw new RuntimeException(ex);
                 }
-            } while (persistent || httpVersion == null);
+            } while (persistent || clientHttpVersion == null);
         } finally {
             System.out.println("Closing connection from server side");
             try {
@@ -143,7 +156,9 @@ public class ServerHandler implements Runnable {
 
         String response = readHeader(serverIn);
 
-        if(!response.toLowerCase().contains("keep-alive")) {
+        if(clientHttpVersion == httpVer.HTTP_1_0 && !response.toLowerCase().contains("keep-alive")) {
+            serverPersistent = false;
+        } else if (response.toLowerCase().contains("close")) { // TODO this might be wrong
             serverPersistent = false;
         }
 
@@ -159,7 +174,9 @@ public class ServerHandler implements Runnable {
 
         String responseHeader = readHeader(serverIn);
 
-        if(!responseHeader.toLowerCase().contains("keep-alive")) {
+        if(clientHttpVersion == httpVer.HTTP_1_0 && !responseHeader.toLowerCase().contains("keep-alive")) {
+            serverPersistent = false;
+        } else if (responseHeader.toLowerCase().contains("close")) { // TODO this might be wrong
             serverPersistent = false;
         }
 
@@ -202,8 +219,13 @@ public class ServerHandler implements Runnable {
 
         String responseHeader = readHeader(serverIn);
 
-        if(!responseHeader.toLowerCase().contains("keep-alive")) {
-            serverPersistent = false;
+        if (
+                clientHttpVersion == httpVer.HTTP_1_0 &&
+                (mH.get("Connection") == null || mH.get("Connection").equalsIgnoreCase("close"))
+        ) {
+                serverPersistent = false;
+        } else if (mH.get("Connection") != null && mH.get("Connection").equalsIgnoreCase("close")) {
+                serverPersistent = false;
         }
 
         int contentLengthStart = responseHeader.indexOf("Content-Length: ");
