@@ -93,11 +93,11 @@ public class ServerHandler implements Runnable {
                     }
 
                     if (method.equalsIgnoreCase("get")) {
-                        handleGet(domain, shortPath, mH);
+                        handleGet(shortPath, mH);
                     } else if (method.equalsIgnoreCase("post")) {
-                        handlePost(domain, shortPath, mH);
+                        handlePost(shortPath, mH);
                     } else if (method.equalsIgnoreCase("head")) {
-                        handleHead(domain, shortPath, mH);
+                        handleHead(shortPath, mH);
                     } else {
                         error405();
                         return;
@@ -132,7 +132,7 @@ public class ServerHandler implements Runnable {
         }
     }
 
-    public void handleHead(String domain, String shortPath, MimeHeader mH) throws IOException {
+    public void handleHead(String shortPath, MimeHeader mH) throws IOException {
         String req = "HEAD " + shortPath + " HTTP/1.1\r\n" + mH;
 
         serverOut.writeBytes(req);
@@ -148,7 +148,7 @@ public class ServerHandler implements Runnable {
         clientOut.writeBytes(response);
     }
 
-    public void handleGet(String domain, String shortPath, MimeHeader mH) throws IOException {
+    public void handleGet(String shortPath, MimeHeader mH) throws IOException {
         String constructedRequest = "GET " + shortPath + " HTTP/1.1\r\n" + mH;
 
         serverOut.writeBytes(constructedRequest);
@@ -177,7 +177,7 @@ public class ServerHandler implements Runnable {
         clientOut.write(data);
     }
 
-    public void handlePost(String domain, String shortPath, MimeHeader mH) throws IOException {
+    public void handlePost(String shortPath, MimeHeader mH) throws IOException {
         byte[] data;
         String contentLength = mH.get("Content-Length");
         if (contentLength != null) {
