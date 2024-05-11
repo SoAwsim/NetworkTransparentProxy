@@ -29,7 +29,6 @@ public class ServerHandler implements Runnable {
 
     @Override
     public void run() {
-        System.out.println("NEW THREAD");
         //boolean persistent = true;
         try {
             do {
@@ -159,6 +158,12 @@ public class ServerHandler implements Runnable {
         serverSocket.setSoTimeout(SERVER_TIMEOUT);
     }
 
+    private boolean cacheData(String header) {
+        MimeHeader parameters = new MimeHeader(header);
+        // Can we cache the content?
+        return parameters.get("Last-Modified") != null;
+    }
+
     private void handleHead(String shortPath, MimeHeader mH) throws IOException {
         String req = "HEAD " + shortPath + " " + clientHttpVersion +"\r\n" + mH;
 
@@ -179,6 +184,9 @@ public class ServerHandler implements Runnable {
         String responseHeader;
         try {
             responseHeader = readHeader(serverIn);
+            int secondLine = responseHeader.indexOf('\r') + 2;
+            System.out.println(responseHeader);
+            System.out.println(cacheData(responseHeader.substring(secondLine)));
         } catch (ArrayIndexOutOfBoundsException ex) {
             throw new BadGatewayException("Header limit exceeded by server", ex);
         }
