@@ -15,7 +15,6 @@ public class ServerHandler implements Runnable {
 
     private boolean keepConnection = true;
 
-    private String clientHttpVersion = null;
     private int tempData = -2;
     private static final int SERVER_TIMEOUT = 2000;
 
@@ -47,17 +46,11 @@ public class ServerHandler implements Runnable {
 
                 int methodFinIndex = header.indexOf(' ');
                 int pathFinIndex = header.indexOf(' ', methodFinIndex + 1);
-                int secondLine = header.indexOf('\r') + 2;
 
                 String method = header.substring(0, methodFinIndex); // GET http://example.com/path HTTP/1.1
                 System.out.println("Log: " + method);
                 String fullPath = header.substring(methodFinIndex + 1, pathFinIndex);
                 System.out.println("Log: " + fullPath);
-                clientHttpVersion = header.substring(pathFinIndex + 1, secondLine - 2);
-                System.out.println("HTTP Version: " + clientHttpVersion);
-                String restHeader = header.substring(secondLine);
-
-                MimeHeader mH = new MimeHeader(restHeader);
 
                 URL url;
                 try {
@@ -68,7 +61,6 @@ public class ServerHandler implements Runnable {
                 }
 
                 String domain = url.getHost();
-                String shortPath = url.getPath();
 
                 try {
                     if (serverSocket == null) {
@@ -79,11 +71,11 @@ public class ServerHandler implements Runnable {
                     }
 
                     if (method.equalsIgnoreCase("get")) {
-                        handleGet(shortPath, mH);
+                        handleGet(header);
                     } else if (method.equalsIgnoreCase("post")) {
-                        handlePost(shortPath, mH);
+                        handlePost(header);
                     } else if (method.equalsIgnoreCase("head")) {
-                        handleHead(shortPath, mH);
+                        handleHead(header);
                     } else {
                         error405();
                         return;
@@ -163,22 +155,18 @@ public class ServerHandler implements Runnable {
         return parameters.get("Last-Modified") != null;
     }
 
-    private void handleHead(String shortPath, MimeHeader mH) throws IOException {
-        String req = "HEAD " + shortPath + " " + clientHttpVersion +"\r\n" + mH;
-
-        serverOut.writeBytes(req);
+    private void handleHead(String header) throws IOException {
+        serverOut.writeBytes(header);
         System.out.println("Sent HEAD request to server");
-        System.out.println(req);
+        System.out.println(header);
 
         sendAllDataToClient();
     }
 
-    private void handleGet(String shortPath, MimeHeader mH) throws IOException {
-        String constructedRequest = "GET " + shortPath + " " + clientHttpVersion +"\r\n" + mH;
-
-        serverOut.writeBytes(constructedRequest);
+    private void handleGet(String header) throws IOException {
+        serverOut.writeBytes(header);
         System.out.println("Sent GET to Web Server:");
-        System.out.println(constructedRequest);
+        System.out.println(header);
 
         String responseHeader;
         try {
@@ -194,11 +182,9 @@ public class ServerHandler implements Runnable {
         sendAllDataToClient();
     }
 
-    private void handlePost(String shortPath, MimeHeader mH) throws IOException {
-        String constructedRequest = "POST " + shortPath + " " + clientHttpVersion +"\r\n" + mH;
-
+    private void handlePost(String header) throws IOException {
         // TODO maybe use threads here
-        serverOut.writeBytes(constructedRequest);
+        serverOut.writeBytes(header);
         clientSock.setSoTimeout(100);
         try {
             clientIn.transferTo(serverOut);
@@ -208,14 +194,12 @@ public class ServerHandler implements Runnable {
         clientSock.setSoTimeout(SERVER_TIMEOUT);
 
         System.out.println("Sent POST to Web Server:");
-        System.out.println(constructedRequest);
+        System.out.println(header);
 
         String responseHeader = readHeader(serverIn);
         clientOut.writeBytes(responseHeader);
         sendAllDataToClient();
     }
-
-
 
     private String readHeader() throws IOException, ArrayIndexOutOfBoundsException {
         // Apache header limit is 8KB, so I also use this limit as well
