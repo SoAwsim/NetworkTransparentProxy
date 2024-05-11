@@ -29,7 +29,6 @@ public class ServerHandler implements Runnable {
 
     @Override
     public void run() {
-        //boolean persistent = true;
         try {
             do {
                 String header;
