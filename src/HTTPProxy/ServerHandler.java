@@ -63,11 +63,23 @@ public class ServerHandler implements Runnable {
                     return;
                 }
 
-                String domain = url.getHost();
+                InetAddress serverIP;
+                try {
+                    serverIP = InetAddress.getByName(url.getHost());
+                } catch (UnknownHostException e) {
+                    error400();
+                    return;
+                }
 
                 try {
                     if (serverSocket == null) {
-                        serverSocket = new Socket(domain, 80);
+                        serverSocket = new Socket(serverIP, 80);
+                        serverSocket.setSoTimeout(SERVER_TIMEOUT);
+                        serverIn = new DataInputStream(serverSocket.getInputStream());
+                        serverOut = new DataOutputStream(serverSocket.getOutputStream());
+                    } else if (serverSocket.getInetAddress() != serverIP) {
+                        serverSocket.close();
+                        serverSocket = new Socket(serverIP, 80);
                         serverSocket.setSoTimeout(SERVER_TIMEOUT);
                         serverIn = new DataInputStream(serverSocket.getInputStream());
                         serverOut = new DataOutputStream(serverSocket.getOutputStream());
