@@ -13,14 +13,17 @@ public class ServerHandler implements Runnable {
     private DataInputStream serverIn;
     private DataOutputStream serverOut;
 
+    private final ProxyStorage storage;
+
     private boolean keepConnection = true;
 
     private int tempData = -2;
     private static final int SERVER_TIMEOUT = 2000;
 
     // Throw IOException to upper level since this Runnable should not execute
-    public ServerHandler(Socket c) throws IOException {
+    public ServerHandler(Socket c, ProxyStorage storage) throws IOException {
         clientSock = c;
+        this.storage = storage;
         c.setSoTimeout(SERVER_TIMEOUT);
         clientIn = new DataInputStream(clientSock.getInputStream());
         clientOut = new DataOutputStream(clientSock.getOutputStream());
@@ -151,15 +154,24 @@ public class ServerHandler implements Runnable {
 
     private boolean cacheData(String header) {
         MimeHeader parameters = new MimeHeader(header);
+        byte[] data = new byte[10];
         // Can we cache the content?
-        return parameters.get("Last-Modified") != null;
+        if(parameters.get("Last-Modified") != null) {
+            String a = parameters.get("Host");
+            try {
+                storage.saveToCache(a, data);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+            return true;
+        }
+        return false;
     }
 
     private void handleHead(String header) throws IOException {
         serverOut.writeBytes(header);
         System.out.println("Sent HEAD request to server");
         System.out.println(header);
-
         sendAllDataToClient();
     }
 
