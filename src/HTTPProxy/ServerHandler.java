@@ -16,7 +16,7 @@ public class ServerHandler implements Runnable {
     private boolean keepConnection = true;
 
     private int tempData = -2;
-    private static final int SERVER_TIMEOUT = 2000;
+    private static final int SERVER_TIMEOUT = 1000;
 
     // Throw IOException to upper level since this Runnable should not execute
     public ServerHandler(Socket c) throws IOException {
@@ -30,6 +30,7 @@ public class ServerHandler implements Runnable {
     public void run() {
         try {
             do {
+                System.out.println("Reading starts");
                 String header;
                 try {
                     header = readHeader();
@@ -60,11 +61,24 @@ public class ServerHandler implements Runnable {
                     return;
                 }
 
-                String domain = url.getHost();
+                InetAddress serverIP;
+                try {
+                    serverIP = InetAddress.getByName(url.getHost());
+                } catch (UnknownHostException e) {
+                    error400();
+                    return;
+                }
 
                 try {
                     if (serverSocket == null) {
-                        serverSocket = new Socket(domain, 80);
+                        serverSocket = new Socket(serverIP, 80);
+                        serverSocket.setSoTimeout(SERVER_TIMEOUT);
+                        serverIn = new DataInputStream(serverSocket.getInputStream());
+                        serverOut = new DataOutputStream(serverSocket.getOutputStream());
+                    }
+                    else if (serverSocket.getInetAddress() != serverIP) {
+                        serverSocket.close();
+                        serverSocket = new Socket(serverIP, 80);
                         serverSocket.setSoTimeout(SERVER_TIMEOUT);
                         serverIn = new DataInputStream(serverSocket.getInputStream());
                         serverOut = new DataOutputStream(serverSocket.getOutputStream());
@@ -90,9 +104,8 @@ public class ServerHandler implements Runnable {
                 } catch (UnknownHostException ex) {
                     // Do not return anything to the client and close the connection
                     return;
-                } catch (IOException ex) {
-                    error500();
-                    throw new RuntimeException(ex);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
                 }
             } while (keepConnection);
         } finally {
@@ -114,6 +127,9 @@ public class ServerHandler implements Runnable {
     }
 
     private void sendAllDataToClient() throws IOException {
+        String header = readHeader(serverIn);
+        System.out.println("Server reply:\n" + header);
+        clientOut.writeBytes(header);
         boolean serverRead = false;
         while (true) {
             try {
@@ -149,12 +165,6 @@ public class ServerHandler implements Runnable {
         serverSocket.setSoTimeout(SERVER_TIMEOUT);
     }
 
-    private boolean cacheData(String header) {
-        MimeHeader parameters = new MimeHeader(header);
-        // Can we cache the content?
-        return parameters.get("Last-Modified") != null;
-    }
-
     private void handleHead(String header) throws IOException {
         serverOut.writeBytes(header);
         System.out.println("Sent HEAD request to server");
@@ -168,17 +178,6 @@ public class ServerHandler implements Runnable {
         System.out.println("Sent GET to Web Server:");
         System.out.println(header);
 
-        String responseHeader;
-        try {
-            responseHeader = readHeader(serverIn);
-            int secondLine = responseHeader.indexOf('\r') + 2;
-            System.out.println(responseHeader);
-            System.out.println(cacheData(responseHeader.substring(secondLine)));
-        } catch (ArrayIndexOutOfBoundsException ex) {
-            throw new BadGatewayException("Header limit exceeded by server", ex);
-        }
-
-        clientOut.writeBytes(responseHeader);
         sendAllDataToClient();
     }
 

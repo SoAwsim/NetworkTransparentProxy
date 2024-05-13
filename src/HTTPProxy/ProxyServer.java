@@ -24,6 +24,7 @@ public class ProxyServer implements Runnable {
         try {
             while (true) {
                 Socket conSock = ServerSock.accept();
+                System.out.println("Connection accepted on new thread");
                 try {
                     executorThreads.execute(new ServerHandler(conSock));
                 }
