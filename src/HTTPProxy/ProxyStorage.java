@@ -1,22 +1,26 @@
 package HTTPProxy;
 
 import java.io.*;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class ProxyStorage {
     private static ProxyStorage obj_instance;
     private static final Object obj_lock = new Object();
 
-    private final File configDir;
-
     private final File cacheDir;
     private final File cacheIndex;
     private final ArrayList<String> writeLock;
+    private final File blockedIndex;
     private ConcurrentHashMap<String, String> cacheMap;
+    private ConcurrentHashMap<InetAddress, String> blockedMap;
 
-    public static ProxyStorage getBlockedHosts() throws IOException {
+    public static ProxyStorage getStorage() throws IOException {
         ProxyStorage obj = obj_instance;
         if (obj_instance == null) {
             synchronized (obj_lock) {
@@ -33,7 +37,7 @@ public class ProxyStorage {
 
     private ProxyStorage() throws IOException {
         String homeDir = System.getProperty("user.home");
-        configDir = new File(homeDir + File.separator + ".proxy");
+        File configDir = new File(homeDir + File.separator + ".proxy");
         // Does the config dir exists?
         if (!configDir.exists()) {
             if (!configDir.mkdirs()) {
@@ -41,6 +45,21 @@ public class ProxyStorage {
             }
         }
 
+        // Initialize blocked hosts
+        blockedIndex = new File(configDir + File.separator + "blocked_index");
+        if (blockedIndex.exists()) {
+            try (FileInputStream index = new FileInputStream(blockedIndex);
+                ObjectInputStream blocked = new ObjectInputStream(index)) {
+                blockedMap = (ConcurrentHashMap<InetAddress, String>) blocked.readObject();
+            } catch (ClassNotFoundException e) {
+                blockedIndex.delete();
+                blockedMap = new ConcurrentHashMap<>();
+            }
+        } else {
+            blockedMap = new ConcurrentHashMap<>();
+        }
+
+        // Initialize cache
         cacheDir = new File(configDir + File.separator + "cache");
         // Does the cache dir exists?
         if (!cacheDir.exists()) {
@@ -68,6 +87,35 @@ public class ProxyStorage {
         }
 
         writeLock = new ArrayList<>();
+    }
+
+    public boolean isBlocked(InetAddress ip) {
+        return blockedMap.get(ip) != null;
+    }
+
+    public void blockAddress(String address) throws IOException {
+        InetAddress ip = InetAddress.getByName(address);
+        String previous = blockedMap.putIfAbsent(ip, address);
+        if (previous == null) {
+            try (FileOutputStream fileOut = new FileOutputStream(blockedIndex);
+                 ObjectOutputStream objectStream = new ObjectOutputStream(fileOut)) {
+                objectStream.writeObject(blockedMap);
+            }
+        }
+    }
+
+    public Set<Map.Entry<InetAddress, String>> getAllBlocked() {
+        return blockedMap.entrySet();
+    }
+
+    public void unblockHosts(InetAddress[] ipArray) throws IOException {
+        for (InetAddress ip : ipArray) {
+            blockedMap.remove(ip);
+        }
+        try (FileOutputStream fileOut = new FileOutputStream(blockedIndex);
+             ObjectOutputStream objectStream = new ObjectOutputStream(fileOut)) {
+            objectStream.writeObject(blockedMap);
+        }
     }
 
     public Object[] isCached(String fileName) throws IOException {

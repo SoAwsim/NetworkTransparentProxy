@@ -15,14 +15,10 @@ public class ProxyServer implements Runnable {
     private final ErrorDisplay edManager;
     private final ProxyStorage storage;
 
-    public ProxyServer(ErrorDisplay ed) {
+    public ProxyServer(ErrorDisplay ed, ProxyStorage storage) {
         this.edManager = ed;
         this.initSock();
-        try {
-            storage = ProxyStorage.getBlockedHosts();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+        this.storage = storage;
     }
     @Override
     public void run() {

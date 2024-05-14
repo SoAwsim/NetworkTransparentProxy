@@ -71,6 +71,12 @@ public class ServerHandler implements Runnable {
                     return;
                 }
 
+                // Check if host is blocked
+                if (storage.isBlocked(serverIP)) {
+                    error403();
+                    return;
+                }
+
                 try {
                     if (serverSocket == null) {
                         serverSocket = new Socket(serverIP, 80);
@@ -410,6 +416,16 @@ public class ServerHandler implements Runnable {
     private void error400() {
         String html = "<html><body><h1>400 Bad Request</h1></body></html>";
         String response = "HTTP/1.1 400 Bad Request\r\n"
+                + "Date: " + new Date() + "\r\n"
+                + "Server: CSE471 Proxy\r\n"
+                + "Content-Length: " + html.length() + "\r\n"
+                + "Content-Type: text/html; charset=UTF-8\r\n\r\n" + html;
+        sendErrorToClient(response);
+    }
+
+    private void error403() {
+        String html = "<html><body><h1>403 Forbidden</h1></body></html>";
+        String response = "HTTP/1.1 403 Forbidden\r\n"
                 + "Date: " + new Date() + "\r\n"
                 + "Server: CSE471 Proxy\r\n"
                 + "Content-Length: " + html.length() + "\r\n"

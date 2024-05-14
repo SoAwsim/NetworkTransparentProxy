@@ -1,22 +1,72 @@
 package gui;
 
 import HTTPProxy.ProxyServer;
+import HTTPProxy.ProxyStorage;
 
 import javax.swing.*;
+import javax.swing.table.DefaultTableModel;
 import java.awt.*;
+import java.io.IOException;
+import java.net.UnknownHostException;
 
 public class ProxyGui implements ErrorDisplay {
     private final JFrame mainWindow;
     private JLabel proxyStatus;
+
+    private final JFrame blockedWindow;
+
     private Thread serverThread;
     private ProxyServer httpProxy;
+    private ProxyStorage storage;
 
     public ProxyGui() {
+        try {
+            storage = ProxyStorage.getStorage();
+        } catch (IOException e) {
+            System.out.println("IO error occurred while getting saved data");
+            storage = null;
+        }
+
         mainWindow = new JFrame("Transparent Proxy");
         mainWindow.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         mainWindow.setSize(800, 450);
         mainWindow.setResizable(true);
         mainWindow.setLayout(new GridBagLayout());
+
+        blockedWindow = new JFrame("Blocked Hosts");
+        blockedWindow.setDefaultCloseOperation(JFrame.HIDE_ON_CLOSE);
+        blockedWindow.setSize(600, 500);
+        blockedWindow.setResizable(true);
+        blockedWindow.setLayout(new GridBagLayout());
+
+        String[] cname = {"IP", "Hostname"};
+        DefaultTableModel tableModel = new DefaultTableModel(cname, 0);
+
+        GridBagConstraints gc = new GridBagConstraints();
+        JTable blockedTable = new JTable(tableModel) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        };
+
+        JScrollPane sp = new JScrollPane(blockedTable);
+        gc.fill = GridBagConstraints.BOTH;
+        gc.gridx = 0;
+        gc.gridy = 0;
+        gc.weighty = 1.0;
+        gc.weightx = 1.0;
+        blockedWindow.add(sp, gc);
+
+        JPanel buttonPanel = new JPanel();
+        buttonPanel.setLayout(new BorderLayout());
+        JButton tableButton = new JButton("Test");
+        buttonPanel.add(tableButton, BorderLayout.CENTER);
+        gc.gridx = 0;
+        gc.gridy = 1;
+        gc.weighty = 0.0;
+        gc.weightx = 1.0;
+        blockedWindow.add(buttonPanel, gc);
 
         JMenuBar menuBar = new JMenuBar();
 
@@ -27,7 +77,7 @@ public class ProxyGui implements ErrorDisplay {
         startProxy.addActionListener(e -> {
             /* TODO implement proxy start logic*/
             if (serverThread == null) {
-                httpProxy = new ProxyServer(this);
+                httpProxy = new ProxyServer(this, storage);
                 serverThread = new Thread(httpProxy);
                 serverThread.start();
                 proxyStatus.setText("Proxy Server is Running...");
@@ -61,12 +111,38 @@ public class ProxyGui implements ErrorDisplay {
 
         JMenuItem filterHost = new JMenuItem("Add host to filter");
         filterHost.addActionListener(e -> {
-            /* TODO implement filtering logic*/
+            if (storage != null) {
+                do {
+                    String address = JOptionPane.showInputDialog(mainWindow, "Enter IP address or hostname to block: ");
+                    if (address == null || address.isBlank()) {
+                        break;
+                    }
+                    try {
+                        storage.blockAddress(address);
+                    } catch (UnknownHostException ex) {
+                        JOptionPane.showMessageDialog(mainWindow, "Hostname or IP address is not valid", "Address Error", JOptionPane.ERROR_MESSAGE);
+                        continue;
+                    } catch (IOException ex) {
+                        JOptionPane.showMessageDialog(mainWindow, "IO error during writing to disk", "IO Error", JOptionPane.ERROR_MESSAGE);
+                        break;
+                    }
+                    JOptionPane.showMessageDialog(mainWindow, "Hostname is blocked", "Confirmation", JOptionPane.INFORMATION_MESSAGE);
+                    break;
+                } while (true);
+            } else {
+                JOptionPane.showMessageDialog(mainWindow, "Cannot read config data of proxy server!", "IO Error", JOptionPane.ERROR_MESSAGE);
+            }
         });
 
         JMenuItem displayFilter = new JMenuItem("Display current filtered host");
         displayFilter.addActionListener(e -> {
-            /* TODO implement filtering logic*/
+            tableModel.setRowCount(0);
+            var allBlocked = storage.getAllBlocked();
+            for (var element: allBlocked) {
+                Object[] row = {element.getKey().getHostAddress(), element.getValue()};
+                tableModel.addRow(row);
+            }
+            blockedWindow.setVisible(!blockedWindow.isVisible());
         });
 
         JMenuItem exitApp = new JMenuItem("Exit");
