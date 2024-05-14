@@ -18,7 +18,7 @@ public class ServerHandler implements Runnable {
     private boolean keepConnection = true;
 
     private int tempData = -2;
-    private static final int SERVER_TIMEOUT = 2000;
+    private static final int SERVER_TIMEOUT = 1000;
 
     // Throw IOException to upper level since this Runnable should not execute
     public ServerHandler(Socket c, ProxyStorage storage) throws IOException {
@@ -86,11 +86,11 @@ public class ServerHandler implements Runnable {
                     }
 
                     if (method.equalsIgnoreCase("get")) {
-                        handleGet(header);
+                        handleGet(header, url);
                     } else if (method.equalsIgnoreCase("post")) {
-                        handlePost(header);
+                        handlePost(header, url);
                     } else if (method.equalsIgnoreCase("head")) {
-                        handleHead(header);
+                        handleHead(header, url);
                     } else {
                         error405();
                         return;
@@ -100,13 +100,12 @@ public class ServerHandler implements Runnable {
                 } catch (BadGatewayException ex) {
                     error502();
                     return;
-                } catch (SocketException ex) { // Did the server close the connection?
+                } catch (SocketTimeoutException ex) { // Did the server close the connection?
                     return;
                 } catch (UnknownHostException ex) {
                     // Do not return anything to the client and close the connection
                     return;
                 } catch (IOException ex) {
-                    error500();
                     throw new RuntimeException(ex);
                 }
             } while (keepConnection);
@@ -128,13 +127,59 @@ public class ServerHandler implements Runnable {
         }
     }
 
-    private void sendAllDataToClient() throws IOException {
+    private void sendAllDataToClient(URL url, String cacheHeader) throws IOException {
+        String responseHeader;
+        if (cacheHeader != null) {
+            responseHeader = cacheHeader;
+        } else {
+            try {
+                responseHeader = readHeader(serverIn);
+            } catch (ArrayIndexOutOfBoundsException e) {
+                throw new BadGatewayException("Header limit exceeded by server", e);
+            }
+        }
+
+        int secondLine = responseHeader.indexOf('\r') + 2;
+        String cacheDate = canCache(new MimeHeader(responseHeader.substring(secondLine)));
+        System.out.println("Data cache: " + cacheDate);
+
+        FileOutputStream cacheFile = null;
+        if (cacheDate != null) {
+            try {
+                cacheFile = storage.getCacheInput(url.getHost() + url.getPath());
+            } catch (IOException e) {
+                // Disable cache saving due to IO error
+                cacheDate = null;
+            }
+        }
+
         boolean serverRead = false;
+        clientOut.writeBytes(responseHeader);
+        if (cacheDate != null && cacheFile != null) {
+            cacheFile.write(responseHeader.getBytes());
+            cacheFile.flush();
+        }
         while (true) {
             try {
-                serverIn.transferTo(clientOut);
+                if (cacheDate != null && cacheFile != null) {
+                    byte [] buffer = new byte[8192];
+                    int read;
+                    while((read = serverIn.read(buffer, 0, 8192)) >= 0) {
+                        clientOut.write(buffer, 0, read);
+                        cacheFile.write(buffer, 0, read);
+                        cacheFile.flush();
+                    }
+                } else {
+                    serverIn.transferTo(clientOut);
+                }
             } catch (SocketTimeoutException ex) {
                 // no data sent in SERVER_TIMEOUT ms
+            }
+
+            if (cacheFile != null) {
+                cacheFile.flush();
+                cacheFile.close();
+                storage.saveCacheIndex(url.getHost() + url.getPath(), cacheDate);
             }
 
             try {
@@ -164,55 +209,98 @@ public class ServerHandler implements Runnable {
         serverSocket.setSoTimeout(SERVER_TIMEOUT);
     }
 
-    private boolean cacheData(String header) {
-        MimeHeader parameters = new MimeHeader(header);
-        byte[] data = new byte[10];
+    private String canCache(MimeHeader parameters) {
         // Can we cache the content?
-        if(parameters.get("Last-Modified") != null) {
-            String a = parameters.get("Host");
-            try {
-                storage.saveToCache(a, data);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-            return true;
-        }
-        return false;
+        return parameters.get("Last-Modified");
     }
 
-    private void handleHead(String header) throws IOException {
-        serverOut.writeBytes(header);
+    private void handleHead(String header, URL url) throws IOException {
+        Object[] cacheResult = storage.isCached(url.getHost() + url.getPath());
+        boolean headerSent = false;
+        int secondLine = header.indexOf('\r') + 2;
+        MimeHeader mh = new MimeHeader(header.substring(secondLine));
+        String cacheResponse = null;
+
+        // Did the client cache it?
+        if (mh.get("If-Modified-Since") == null) {
+            if (cacheResult != null) {
+                String cacheDate = (String) cacheResult[1];
+                mh.put("If-Modified-Since", cacheDate);
+                String request = header.substring(0, secondLine) + mh;
+                System.out.println("Asking if the cache is valid");
+                serverOut.writeBytes(request);
+                headerSent = true;
+                cacheResponse = readHeader(serverIn);
+                // Can use the website in the cache?
+                if (cacheResponse.substring(0, 3).equalsIgnoreCase("304")) {
+                    System.out.println("Cached website found for " + url.getHost() + url.getPath());
+                    FileInputStream cache = (FileInputStream) cacheResult[0];
+                    cache.transferTo(clientOut);
+                    cache.close();
+                    return;
+                } else {
+                    System.out.println("Cache requires update!");
+                }
+            }
+        }
+
+        if (!headerSent) {
+            serverOut.writeBytes(header);
+        }
+
         System.out.println("Sent HEAD request to server");
         System.out.println(header);
-        sendAllDataToClient();
+        sendAllDataToClient(url, cacheResponse);
     }
 
-    private void handleGet(String header) throws IOException {
-        serverOut.writeBytes(header);
-        System.out.println("Sent GET to Web Server:");
-        System.out.println(header);
+    private void handleGet(String header, URL url) throws IOException {
+        Object[] cacheResult = storage.isCached(url.getHost() + url.getPath());
+        boolean headerSent = false;
+        int secondLine = header.indexOf('\r') + 2;
+        MimeHeader mh = new MimeHeader(header.substring(secondLine));
+        String cacheResponse = null;
 
-        String responseHeader;
-        try {
-            responseHeader = readHeader(serverIn);
-            int secondLine = responseHeader.indexOf('\r') + 2;
-            System.out.println(responseHeader);
-            System.out.println(cacheData(responseHeader.substring(secondLine)));
-        } catch (ArrayIndexOutOfBoundsException ex) {
-            throw new BadGatewayException("Header limit exceeded by server", ex);
+        // Did the client cache it?
+        if (mh.get("If-Modified-Since") == null) {
+            if (cacheResult != null) {
+                String cacheDate = (String) cacheResult[1];
+                mh.put("If-Modified-Since", cacheDate);
+                String request = header.substring(0, secondLine) + mh;
+                System.out.println("Asking if the cache is valid");
+                System.out.println(request + "\n");
+                serverOut.writeBytes(request);
+                headerSent = true;
+                cacheResponse = readHeader(serverIn);
+                // Can use the website in the cache?
+                int firstStatus = cacheResponse.indexOf(" ") + 1;
+                if (cacheResponse.substring(firstStatus, firstStatus + 3).equalsIgnoreCase("304")) {
+                    System.out.println("Cached website found for " + url.getHost() + url.getPath());
+                    FileInputStream cache = (FileInputStream) cacheResult[0];
+                    cache.transferTo(clientOut);
+                    cache.close();
+                    return;
+                } else {
+                    System.out.println("Cache requires update!");
+                }
+            }
         }
 
-        clientOut.writeBytes(responseHeader);
-        sendAllDataToClient();
+        if (!headerSent) {
+            serverOut.writeBytes(header);
+        }
+
+        System.out.println("Sent GET to Web Server:");
+        System.out.println(header);
+        sendAllDataToClient(url, cacheResponse);
     }
 
-    private void handlePost(String header) throws IOException {
+    private void handlePost(String header, URL url) throws IOException {
         // TODO maybe use threads here
         serverOut.writeBytes(header);
         clientSock.setSoTimeout(100);
         try {
             clientIn.transferTo(serverOut);
-        } catch (SocketTimeoutException ex) {
+        } catch (SocketTimeoutException ignore) {
             // Ignore since all data transfer should have finished
         }
         clientSock.setSoTimeout(SERVER_TIMEOUT);
@@ -222,7 +310,7 @@ public class ServerHandler implements Runnable {
 
         String responseHeader = readHeader(serverIn);
         clientOut.writeBytes(responseHeader);
-        sendAllDataToClient();
+        sendAllDataToClient(url, null);
     }
 
     private String readHeader() throws IOException, ArrayIndexOutOfBoundsException {

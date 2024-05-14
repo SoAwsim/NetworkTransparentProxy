@@ -2,7 +2,7 @@ package HTTPProxy;
 
 import java.io.*;
 import java.util.ArrayList;
-import java.util.Date;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class ProxyStorage {
@@ -14,7 +14,7 @@ public class ProxyStorage {
     private final File cacheDir;
     private final File cacheIndex;
     private final ArrayList<String> writeLock;
-    private final ConcurrentHashMap<String, Date> cacheMap;
+    private ConcurrentHashMap<String, String> cacheMap;
 
     public static ProxyStorage getBlockedHosts() throws IOException {
         ProxyStorage obj = obj_instance;
@@ -35,40 +35,81 @@ public class ProxyStorage {
         String homeDir = System.getProperty("user.home");
         configDir = new File(homeDir + File.separator + ".proxy");
         // Does the config dir exists?
-        if (!configDir.mkdirs()) {
-            // TODO Load config
+        if (!configDir.exists()) {
+            if (!configDir.mkdirs()) {
+                throw new IOException("Config directory creation failed!");
+            }
         }
+
         cacheDir = new File(configDir + File.separator + "cache");
         // Does the cache dir exists?
-        if (!cacheDir.mkdirs()) {
-            // todo load cache
+        if (!cacheDir.exists()) {
+            if (!cacheDir.mkdirs()) {
+                throw new IOException("Cache directory creation failed!");
+            }
+        } // No need to load files here to the memory
+
+        cacheIndex = new File(configDir + File.separator + "cache_index");
+        if (cacheIndex.exists()) {
+            try (FileInputStream index = new FileInputStream(cacheIndex);
+                ObjectInputStream map = new ObjectInputStream(index)) {
+                cacheMap = (ConcurrentHashMap<String, String>) map.readObject();
+            } catch (ClassNotFoundException e) {
+                // File reading failed for index therefore clear all cache and reset index
+                cacheIndex.delete();
+                for (File file: Objects.requireNonNull(cacheDir.listFiles())) {
+                    file.delete();
+                }
+
+                cacheMap = new ConcurrentHashMap<>();
+            }
+        } else {
+            cacheMap = new ConcurrentHashMap<>();
         }
-        cacheIndex = new File(cacheDir + File.separator + "index");
-        cacheMap = new ConcurrentHashMap<>();
-        writeLock = new ArrayList<String>();
+
+        writeLock = new ArrayList<>();
     }
 
-    public void saveToCache(String fileName, byte[] data) throws IOException {
+    public Object[] isCached(String fileName) throws IOException {
+        fileName = fileName.replace("/", " ");
+        String cacheDate = cacheMap.get(fileName);
+        if (cacheDate != null) {
+            return new Object[] {new FileInputStream(cacheDir + File.separator + fileName + ".data"), cacheDate};
+        }
+        return null;
+    }
+
+    public FileOutputStream getCacheInput(String fileName) throws IOException {
+        // Replace / with empty space / causes problems with the directory structure
+        fileName = fileName.replace("/", " ");
         synchronized (writeLock) {
             // Check if another thread is trying to save the same cache
             if(writeLock.contains(fileName)) {
-                return;
-            }
-            else {
+                return null;
+            } else {
                 writeLock.add(fileName);
             }
         }
-        FileOutputStream cacheFile = new FileOutputStream(cacheDir + File.separator + fileName);
-        cacheFile.write(data, 0, data.length);
-        cacheFile.flush();
-        cacheFile.close();
-        cacheMap.put(fileName, new Date());
+        return new FileOutputStream(cacheDir + File.separator + fileName + ".data");
+    }
+
+    public void saveCacheIndex(String fileName, String date) throws IOException {
+        fileName = fileName.replace("/", " ");
+        synchronized (writeLock) {
+            if (!writeLock.contains(fileName)) {
+                return;
+            }
+        }
+        System.out.println("Saving index");
+        cacheMap.put(fileName, date);
         synchronized (cacheIndex) {
             try (FileOutputStream fileOut = new FileOutputStream(cacheIndex);
                  ObjectOutputStream objectStream = new ObjectOutputStream(fileOut)) {
                 objectStream.writeObject(cacheMap);
             }
         }
-        writeLock.remove(fileName);
+        synchronized (writeLock) {
+            writeLock.remove(fileName);
+        }
     }
 }
