@@ -88,9 +88,11 @@ public class ServerHandler implements Runnable {
                     if (method.equalsIgnoreCase("get")) {
                         handleGet(header, url);
                     } else if (method.equalsIgnoreCase("post")) {
-                        handlePost(header, url);
+                        handlePost(header);
                     } else if (method.equalsIgnoreCase("head")) {
                         handleHead(header, url);
+                    } else if (method.equalsIgnoreCase("options")) {
+                        handleOptions(header);
                     } else {
                         error405();
                         return;
@@ -125,6 +127,43 @@ public class ServerHandler implements Runnable {
                 System.out.println("Error closing the socket!");
             }
         }
+    }
+
+    // Overloaded function, this one does not do caching suitable for post, options
+    private void sendAllDataToClient() throws IOException {
+        boolean serverRead = false;
+        while (true) {
+            try {
+                serverIn.transferTo(clientOut);
+            } catch (SocketTimeoutException ex) {
+                // no data sent in SERVER_TIMEOUT ms
+            }
+
+            try {
+                tempData = clientIn.read();
+                // Did the client close the connection?
+                if (tempData == -1) {
+                    System.out.println("Client closed connection");
+                    keepConnection = false;
+                    return;
+                }
+                // Client has a reply continue with the persistent connection
+                break;
+            } catch (SocketTimeoutException ex) {
+                // If this is the first timeout allow more time to the server
+                // If second time assume connection was lost or timeout
+                if (!serverRead) {
+                    serverRead = true;
+                } else {
+                    break;
+                }
+                // Allow for longer wait for next connection
+                clientSock.setSoTimeout(SERVER_TIMEOUT * 2);
+                serverSocket.setSoTimeout(SERVER_TIMEOUT * 2);
+            }
+        }
+        clientSock.setSoTimeout(SERVER_TIMEOUT);
+        serverSocket.setSoTimeout(SERVER_TIMEOUT);
     }
 
     private void sendAllDataToClient(URL url, String cacheHeader) throws IOException {
@@ -294,7 +333,7 @@ public class ServerHandler implements Runnable {
         sendAllDataToClient(url, cacheResponse);
     }
 
-    private void handlePost(String header, URL url) throws IOException {
+    private void handlePost(String header) throws IOException {
         // TODO maybe use threads here
         serverOut.writeBytes(header);
         clientSock.setSoTimeout(100);
@@ -310,7 +349,14 @@ public class ServerHandler implements Runnable {
 
         String responseHeader = readHeader(serverIn);
         clientOut.writeBytes(responseHeader);
-        sendAllDataToClient(url, null);
+        sendAllDataToClient();
+    }
+
+    private void handleOptions(String header) throws IOException {
+        serverOut.writeBytes(header);
+        System.out.println("Sent OPTIONS request to server");
+        System.out.println(header);
+        sendAllDataToClient();
     }
 
     private String readHeader() throws IOException, ArrayIndexOutOfBoundsException {
