@@ -20,7 +20,7 @@ public class ProxyGui implements ErrorDisplay {
     private ProxyServer httpProxy;
     private ProxyStorage storage;
 
-    private DefaultTableModel blockedTableModel;
+    private final DefaultTableModel blockedTableModel;
 
     public ProxyGui() {
         try {
