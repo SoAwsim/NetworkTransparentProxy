@@ -7,6 +7,7 @@ import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.UnknownHostException;
 
 public class ProxyGui implements ErrorDisplay {
@@ -18,6 +19,8 @@ public class ProxyGui implements ErrorDisplay {
     private Thread serverThread;
     private ProxyServer httpProxy;
     private ProxyStorage storage;
+
+    private DefaultTableModel blockedTableModel;
 
     public ProxyGui() {
         try {
@@ -40,10 +43,10 @@ public class ProxyGui implements ErrorDisplay {
         blockedWindow.setLayout(new GridBagLayout());
 
         String[] cname = {"IP", "Hostname"};
-        DefaultTableModel tableModel = new DefaultTableModel(cname, 0);
+        blockedTableModel = new DefaultTableModel(cname, 0);
 
         GridBagConstraints gc = new GridBagConstraints();
-        JTable blockedTable = new JTable(tableModel) {
+        JTable blockedTable = new JTable(blockedTableModel) {
             @Override
             public boolean isCellEditable(int row, int column) {
                 return false;
@@ -60,7 +63,28 @@ public class ProxyGui implements ErrorDisplay {
 
         JPanel buttonPanel = new JPanel();
         buttonPanel.setLayout(new BorderLayout());
-        JButton tableButton = new JButton("Test");
+        JButton tableButton = new JButton("Unblock Selected Hosts");
+        tableButton.addActionListener(e -> {
+            int[] selectedRows = blockedTable.getSelectedRows();
+            InetAddress[] addrArray = new InetAddress[selectedRows.length];
+            int index = 0;
+            for (int row: selectedRows) {
+                try {
+                    addrArray[index] = InetAddress.getByName(blockedTable.getModel().getValueAt(row, 0).toString().trim());
+                } catch (UnknownHostException ex) {
+                    System.out.println("Unknown host at row " + row + "!");
+                    continue;
+                }
+                index++;
+            }
+            try {
+                storage.unblockHosts(addrArray);
+            } catch (IOException ex) {
+                // todo handle this better
+                System.out.println("Unlocking failed!");
+            }
+            refreshBlockedList();
+        });
         buttonPanel.add(tableButton, BorderLayout.CENTER);
         gc.gridx = 0;
         gc.gridy = 1;
@@ -136,12 +160,7 @@ public class ProxyGui implements ErrorDisplay {
 
         JMenuItem displayFilter = new JMenuItem("Display current filtered host");
         displayFilter.addActionListener(e -> {
-            tableModel.setRowCount(0);
-            var allBlocked = storage.getAllBlocked();
-            for (var element: allBlocked) {
-                Object[] row = {element.getKey().getHostAddress(), element.getValue()};
-                tableModel.addRow(row);
-            }
+            refreshBlockedList();
             blockedWindow.setVisible(!blockedWindow.isVisible());
         });
 
@@ -179,6 +198,15 @@ public class ProxyGui implements ErrorDisplay {
         panel.add(proxyStatus);
         mainWindow.add(panel);
         mainWindow.setVisible(true);
+    }
+
+    private void refreshBlockedList() {
+        blockedTableModel.setRowCount(0);
+        var allBlocked = storage.getAllBlocked();
+        for (var element: allBlocked) {
+            Object[] row = {element.getKey().getHostAddress(), element.getValue()};
+            blockedTableModel.addRow(row);
+        }
     }
 
     @Override
