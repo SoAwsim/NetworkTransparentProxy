@@ -52,6 +52,7 @@ public class SSLHandler implements Runnable {
         for (byte b: hostname) {
             handshakeBuffer[index++] = b;
         }
+        // todo maybe handle if hostname is not the first field
         return address;
     }
 }
