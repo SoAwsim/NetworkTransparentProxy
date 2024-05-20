@@ -63,6 +63,9 @@ public class ServerHandler implements Runnable {
                     int secondLine = header.indexOf('\r') + 2;
                     MimeHeader mh = new MimeHeader(header.substring(secondLine));
                     String host = mh.get("Host");
+                    if (!host.startsWith("http")) {
+                        host = "http://" + host + fullPath;
+                    }
                     System.out.println(host);
                     try {
                         url = new URL(host);
