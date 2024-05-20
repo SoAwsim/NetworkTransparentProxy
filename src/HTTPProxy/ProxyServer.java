@@ -63,7 +63,7 @@ public class ProxyServer implements Runnable {
     public void initSock() {
         if (ServerSock == null) {
             try {
-                ServerSock = new ServerSocket(8080);
+                ServerSock = new ServerSocket(80);
             } catch (IOException e) {
                 edManager.showExceptionWindow(e);
             }

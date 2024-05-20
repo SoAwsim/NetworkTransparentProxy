@@ -155,22 +155,29 @@ public class SSLHandler implements Runnable {
     }
 
     private String readSNI() throws IOException {
-        bufferIndex += clientIn.read(sharedBuffer, bufferIndex, 1);
         if (bufferIndex == 0) {
-            return null;
+            bufferIndex += clientIn.read(sharedBuffer, bufferIndex, 1);
+            if (bufferIndex == 0) {
+                return null;
+            }
+
+            if (sharedBuffer[bufferIndex - 1] != (byte) 0x16) {
+                return null;
+            }
+
+            bufferIndex += clientIn.read(sharedBuffer, bufferIndex, 5);
+
+            if (sharedBuffer[bufferIndex - 1] != (byte) 0x01) {
+                return null;
+            }
+            bufferIndex += clientIn.read(sharedBuffer, bufferIndex, 38);
+        } else {
+            if (sharedBuffer[0] != (byte) 0x16 || sharedBuffer[5] != (byte) 0x01) {
+                return null;
+            }
+            bufferIndex += clientIn.read(sharedBuffer, bufferIndex, 37);
         }
 
-        if (sharedBuffer[bufferIndex - 1] != (byte) 0x16) {
-            return null;
-        }
-
-        bufferIndex += clientIn.read(sharedBuffer, bufferIndex, 5);
-
-        if (sharedBuffer[bufferIndex - 1] != (byte) 0x01) {
-            return null;
-        }
-
-        bufferIndex += clientIn.read(sharedBuffer, bufferIndex, 38);
         int sessionIdLength = sharedBuffer[bufferIndex - 1];
         bufferIndex += clientIn.read(sharedBuffer, bufferIndex, sessionIdLength + 2);
         int cipherSuiteLength = ((sharedBuffer[bufferIndex - 2] & 0xff) << 8) | (sharedBuffer[bufferIndex - 1] & 0xff);

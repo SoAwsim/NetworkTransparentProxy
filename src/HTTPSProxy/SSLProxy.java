@@ -16,7 +16,7 @@ public class SSLProxy implements Runnable {
 
     public SSLProxy (ProxyStorage storage) throws IOException {
         this.storage = storage;
-        serverSocket = new ServerSocket(44343);
+        this.initSock();
     }
 
     @Override
@@ -60,7 +60,7 @@ public class SSLProxy implements Runnable {
     public void initSock() {
         if (serverSocket == null) {
             try {
-                serverSocket = new ServerSocket(8080);
+                serverSocket = new ServerSocket(443);
             } catch (IOException e) {
                 System.out.println("Failed to create socket");
             }

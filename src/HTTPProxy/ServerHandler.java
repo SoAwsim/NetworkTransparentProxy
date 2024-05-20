@@ -59,8 +59,17 @@ public class ServerHandler implements Runnable {
                 try {
                     url = new URL(fullPath);
                 } catch (MalformedURLException e) {
-                    error400();
-                    return;
+                    // Maybe the hostname exists inside the header?
+                    int secondLine = header.indexOf('\r') + 2;
+                    MimeHeader mh = new MimeHeader(header.substring(secondLine));
+                    String host = mh.get("Host");
+                    System.out.println(host);
+                    try {
+                        url = new URL(host);
+                    } catch (MalformedURLException ex) {
+                        error400();
+                        return;
+                    }
                 }
 
                 InetAddress serverIP;
