@@ -414,7 +414,7 @@ public class ServerHandler implements Runnable {
     }
 
     private void error400() {
-        String html = "<html><body><h1>400 Bad Request</h1></body></html>";
+        String html = "<html><body><h1>400 Bad Request</h1></body></html>\r\n";
         String response = "HTTP/1.1 400 Bad Request\r\n"
                 + "Date: " + new Date() + "\r\n"
                 + "Server: CSE471 Proxy\r\n"
@@ -424,7 +424,7 @@ public class ServerHandler implements Runnable {
     }
 
     private void error403() {
-        String html = "<html><body><h1>403 Forbidden</h1></body></html>";
+        String html = "<html><body><h1>403 Forbidden</h1></body></html>\r\n";
         String response = "HTTP/1.1 403 Forbidden\r\n"
                 + "Date: " + new Date() + "\r\n"
                 + "Server: CSE471 Proxy\r\n"
@@ -434,7 +434,7 @@ public class ServerHandler implements Runnable {
     }
 
     private void error405() {
-        String html = "<html><body><h1>405 Method Not Allowed</h1></body></html>";
+        String html = "<html><body><h1>405 Method Not Allowed</h1></body></html>\r\n";
         String response = "HTTP/1.1 405 Method Not Allowed\r\n"
                 + "Date: " + new Date() + "\r\n"
                 + "Server: CSE471 Proxy\r\n"
@@ -444,7 +444,7 @@ public class ServerHandler implements Runnable {
     }
 
     private void error414() {
-        String html = "<html><body><h1>413 Entity Too Large</h1></body></html>";
+        String html = "<html><body><h1>413 Entity Too Large</h1></body></html>\r\n";
         String response = "HTTP/1.1 413 Content Too Large\r\n"
                 + "Date: " + new Date() + "\r\n"
                 + "Server: CSE471 Proxy\r\n"
@@ -454,7 +454,7 @@ public class ServerHandler implements Runnable {
     }
 
     private void error500() {
-        String html = "<html><body><h1>500 Internal Server Error</h1></body></html>";
+        String html = "<html><body><h1>500 Internal Server Error</h1></body></html>\r\n";
         String response = "HTTP/1.1 500 Internal Server Error\r\n"
                 + "Date: " + new Date() + "\r\n"
                 + "Server: CSE471 Proxy\r\n"
@@ -464,7 +464,7 @@ public class ServerHandler implements Runnable {
     }
 
     private void error502() {
-        String html = "<html><body><h1>502 Bad Gateway</h1></body></html>";
+        String html = "<html><body><h1>502 Bad Gateway</h1></body></html>\r\n";
         String response = "HTTP/1.1 502 Bad Gateway\r\n"
                 + "Date: " + new Date() + "\r\n"
                 + "Server: CSE471 Proxy\r\n"

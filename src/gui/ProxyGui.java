@@ -2,6 +2,7 @@ package gui;
 
 import HTTPProxy.ProxyServer;
 import HTTPProxy.ProxyStorage;
+import HTTPSProxy.SSLProxy;
 
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
@@ -17,7 +18,9 @@ public class ProxyGui implements ErrorDisplay {
     private final JFrame blockedWindow;
 
     private Thread serverThread;
+    private Thread serverSSLThread;
     private ProxyServer httpProxy;
+    private SSLProxy httpsProxy;
     private ProxyStorage storage;
 
     private final DefaultTableModel blockedTableModel;
@@ -102,14 +105,24 @@ public class ProxyGui implements ErrorDisplay {
             /* TODO implement proxy start logic*/
             if (serverThread == null) {
                 httpProxy = new ProxyServer(this, storage);
+                try {
+                    httpsProxy = new SSLProxy(storage);
+                } catch (IOException ex) {
+                    System.out.println("Failed to create HTTPS proxy");
+                }
                 serverThread = new Thread(httpProxy);
+                serverSSLThread = new Thread(httpsProxy);
                 serverThread.start();
+                serverSSLThread.start();
                 proxyStatus.setText("Proxy Server is Running...");
             }
             else if (!serverThread.isAlive()) {
                 serverThread = new Thread(httpProxy);
+                serverSSLThread = new Thread(httpsProxy);
                 httpProxy.initSock();
+                httpsProxy.initSock();
                 serverThread.start();
+                serverSSLThread.start();
                 proxyStatus.setText("Proxy Server is Running...");
             }
             else {
@@ -125,6 +138,7 @@ public class ProxyGui implements ErrorDisplay {
         stopProxy.addActionListener(e -> {
             /* TODO implement proxy stop logic*/
             httpProxy.closeSock();
+            httpsProxy.closeSock();
             proxyStatus.setText("Proxy Server is Stopped...");
         });
 

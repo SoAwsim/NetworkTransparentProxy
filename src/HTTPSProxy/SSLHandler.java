@@ -5,17 +5,25 @@ import HTTPProxy.ProxyStorage;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.net.InetAddress;
-import java.net.Socket;
+import java.net.*;
 
 public class SSLHandler implements Runnable {
     private final Socket clientSock;
     private final DataInputStream clientIn;
     private final DataOutputStream clientOut;
 
+    private Socket serverSocket;
+    private DataInputStream serverIn;
+    private DataOutputStream serverOut;
+
     private final ProxyStorage storage;
 
-    private static final int SERVER_TIMEOUT = 1000;
+    private static final int SERVER_TIMEOUT = 300;
+    private static final int BUFFER_SIZE = 8192;
+
+    private final byte[] sharedBuffer = new byte[BUFFER_SIZE];
+    int bufferIndex = 0;
+
     public SSLHandler (Socket socket, ProxyStorage storage) throws IOException {
         clientSock = socket;
         this.storage = storage;
@@ -26,33 +34,156 @@ public class SSLHandler implements Runnable {
 
     @Override
     public void run() {
+        InetAddress hostAddr = null;
+        boolean connectReq = false;
+        try {
+            do {
+                // Reset buffer
+                bufferIndex = 0;
+                // If the client connected with the connect method no need to parse the contents again just relay information
+                if (!connectReq) {
+                    bufferIndex += clientIn.read(sharedBuffer, 0, 7);
+                    if (bufferIndex == -1) {
+                        return;
+                    }
+                    // Check if CONNECT
+                    try {
+                        if (
+                                sharedBuffer[0] == 'C' && sharedBuffer[1] == 'O' && sharedBuffer[2] == 'N' && sharedBuffer[3] == 'N'
+                                        && sharedBuffer[4] == 'E' && sharedBuffer[5] == 'C' && sharedBuffer[6] == 'T'
+                        ) {
+                            String header = readHeader();
+                            int firstSpace = header.indexOf(' ');
+                            int portDiv = header.indexOf(':');
+                            hostAddr = InetAddress.getByName(header.substring(firstSpace + 1, portDiv));
+                            connectReq = true;
+                        } else {
+                            // Send rest of the data to the server
+                            String strHost = readSNI();
+                            if (strHost != null) {
+                                hostAddr = InetAddress.getByName(strHost);
+                            }
+                        }
+                    } catch (UnknownHostException ignore) {
+                        // Ignore for now
+                    } catch (ArrayIndexOutOfBoundsException e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+                else {
+                    // Reset this flag since client may want to initiate another connection in the future
+                    connectReq = false;
+                }
 
+                if (hostAddr == null) {
+                    throw new IOException("Host address not found!");
+                }
+
+                if (serverSocket == null) {
+                    serverSocket = new Socket(hostAddr, 443);
+                    serverSocket.setSoTimeout(SERVER_TIMEOUT);
+                    serverIn = new DataInputStream(serverSocket.getInputStream());
+                    serverOut = new DataOutputStream(serverSocket.getOutputStream());
+                } else if (serverSocket.getInetAddress() != hostAddr) {
+                    serverSocket.close();
+                    serverSocket = new Socket(hostAddr, 80);
+                    serverSocket.setSoTimeout(SERVER_TIMEOUT);
+                    serverIn = new DataInputStream(serverSocket.getInputStream());
+                    serverOut = new DataOutputStream(serverSocket.getOutputStream());
+                }
+
+                // Return 200 OK to the client
+                if (connectReq) {
+                    clientOut.writeBytes("HTTP/1.1 200 OK\r\n\r\n");
+                    clientOut.flush();
+                    continue;
+                }
+
+                // Transfer buffered data to the server
+                if (bufferIndex != 0) {
+                    serverOut.write(sharedBuffer, 0, bufferIndex);
+                }
+
+                try {
+                    clientIn.transferTo(serverOut);
+                } catch (SocketTimeoutException ignore) {
+
+                }
+
+                // Transfer the response back to the client
+                try {
+                    serverIn.transferTo(clientOut);
+                } catch (SocketTimeoutException ignore) {
+
+                }
+            } while (true);
+        } catch (SocketTimeoutException ignore) {
+            // Close the connection
+        } catch (SocketException ignore) {
+            // Closed from remote ignore
+        } catch (IndexOutOfBoundsException e) {
+            System.out.println(bufferIndex);
+            throw e;
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        } finally {
+            System.out.println("Closing HTTPS connection");
+            try {
+                clientSock.close();
+                if (serverSocket != null) {
+                    serverSocket.close();
+                }
+            } catch (IOException e) {
+                System.out.println("Error while closing HTTPS socket");
+            }
+        }
     }
 
-    private InetAddress readSNI() throws IOException {
-        byte[] handshakeBuffer = new byte[8192];
-        byte[] hostname;
-        InetAddress address = null;
-        int index = 0;
-        index = clientIn.read(handshakeBuffer, 0, 44);
-        int sessionIdLength = handshakeBuffer[index - 1];
-        index += clientIn.read(handshakeBuffer, index, sessionIdLength+2);
-        int cipherSuiteLength = ((handshakeBuffer[index - 2] & 0xff) << 8) | (handshakeBuffer[index - 1] & 0xff);
-        index += clientIn.read(handshakeBuffer, index, cipherSuiteLength+1);
-        int compressionMethodLength = handshakeBuffer[index - 1];
-        index += clientIn.read(handshakeBuffer, index, compressionMethodLength+2);
-        int currentExtensionLength = 0;
-        index += clientIn.read(handshakeBuffer, index, 9);
-        currentExtensionLength = ((handshakeBuffer[index - 2] & 0xff) << 8) | (handshakeBuffer[index - 1] & 0xff);
-        hostname = new byte[currentExtensionLength];
-        clientIn.read(hostname, 0, currentExtensionLength);
-        String a = new String(hostname);
-        System.out.println(a);
-        address = InetAddress.getByName(a);
-        for (byte b: hostname) {
-            handshakeBuffer[index++] = b;
+    private String readHeader() throws IOException, ArrayIndexOutOfBoundsException {
+        int temp;
+        do {
+            // readByte throws IOException instead of writing -1 to array so, I use this one
+            temp = clientIn.read();
+            if (temp == -1) {
+                throw new SocketTimeoutException("Client Disconnected");
+            }
+            sharedBuffer[bufferIndex++] = (byte) temp;
+        } while (sharedBuffer[bufferIndex - 1] != '\n' || sharedBuffer[bufferIndex - 2] != '\r'
+                || sharedBuffer[bufferIndex - 3] != '\n' || sharedBuffer[bufferIndex - 4] != '\r');
+
+        return new String(sharedBuffer, 0, bufferIndex);
+    }
+
+    private String readSNI() throws IOException {
+        bufferIndex += clientIn.read(sharedBuffer, bufferIndex, 1);
+        if (bufferIndex == 0) {
+            return null;
         }
+
+        if (sharedBuffer[bufferIndex - 1] != (byte) 0x16) {
+            return null;
+        }
+
+        bufferIndex += clientIn.read(sharedBuffer, bufferIndex, 5);
+
+        if (sharedBuffer[bufferIndex - 1] != (byte) 0x01) {
+            return null;
+        }
+
+        bufferIndex += clientIn.read(sharedBuffer, bufferIndex, 38);
+        int sessionIdLength = sharedBuffer[bufferIndex - 1];
+        bufferIndex += clientIn.read(sharedBuffer, bufferIndex, sessionIdLength + 2);
+        int cipherSuiteLength = ((sharedBuffer[bufferIndex - 2] & 0xff) << 8) | (sharedBuffer[bufferIndex - 1] & 0xff);
+        bufferIndex += clientIn.read(sharedBuffer, bufferIndex, cipherSuiteLength + 1);
+        int compressionMethodLength = sharedBuffer[bufferIndex - 1];
+        bufferIndex += clientIn.read(sharedBuffer, bufferIndex, compressionMethodLength + 2);
+        int currentExtensionLength;
+        bufferIndex += clientIn.read(sharedBuffer, bufferIndex, 9);
+        currentExtensionLength = ((sharedBuffer[bufferIndex - 2] & 0xff) << 8) | (sharedBuffer[bufferIndex - 1] & 0xff);
+        bufferIndex += clientIn.read(sharedBuffer, bufferIndex, currentExtensionLength);
+        String a = new String(sharedBuffer, bufferIndex-currentExtensionLength, currentExtensionLength);
+        System.out.println(a);
         // todo maybe handle if hostname is not the first field
-        return address;
+        return a;
     }
 }
