@@ -218,7 +218,7 @@ public class ProxyGui implements ErrorDisplay {
         blockedTableModel.setRowCount(0);
         var allBlocked = storage.getAllBlocked();
         for (var element: allBlocked) {
-            Object[] row = {element.getKey().getHostAddress(), element.getValue()};
+            Object[] row = {element.getKey(), element.getValue()};
             blockedTableModel.addRow(row);
         }
     }

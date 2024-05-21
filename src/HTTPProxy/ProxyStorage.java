@@ -17,7 +17,7 @@ public class ProxyStorage {
     private final ArrayList<String> writeLock;
     private final File blockedIndex;
     private ConcurrentHashMap<String, String> cacheMap;
-    private ConcurrentHashMap<InetAddress, String> blockedMap;
+    private ConcurrentHashMap<String, String> blockedMap;
 
     public static ProxyStorage getStorage() throws IOException {
         ProxyStorage obj = obj_instance;
@@ -49,7 +49,7 @@ public class ProxyStorage {
         if (blockedIndex.exists()) {
             try (FileInputStream index = new FileInputStream(blockedIndex);
                 ObjectInputStream blocked = new ObjectInputStream(index)) {
-                blockedMap = (ConcurrentHashMap<InetAddress, String>) blocked.readObject();
+                blockedMap = (ConcurrentHashMap<String, String>) blocked.readObject();
             } catch (ClassNotFoundException e) {
                 blockedIndex.delete();
                 blockedMap = new ConcurrentHashMap<>();
@@ -89,12 +89,12 @@ public class ProxyStorage {
     }
 
     public boolean isBlocked(InetAddress ip) {
-        return blockedMap.get(ip) != null;
+        return blockedMap.get(ip.getHostName()) != null;
     }
 
     public void blockAddress(String address) throws IOException {
         InetAddress ip = InetAddress.getByName(address);
-        String previous = blockedMap.putIfAbsent(ip, address);
+        String previous = blockedMap.putIfAbsent(ip.getHostName(), ip.getHostAddress());
         if (previous == null) {
             try (FileOutputStream fileOut = new FileOutputStream(blockedIndex);
                  ObjectOutputStream objectStream = new ObjectOutputStream(fileOut)) {
@@ -103,13 +103,13 @@ public class ProxyStorage {
         }
     }
 
-    public Set<Map.Entry<InetAddress, String>> getAllBlocked() {
+    public Set<Map.Entry<String, String>> getAllBlocked() {
         return blockedMap.entrySet();
     }
 
     public void unblockHosts(InetAddress[] ipArray) throws IOException {
         for (InetAddress ip : ipArray) {
-            blockedMap.remove(ip);
+            blockedMap.remove(ip.getHostName());
         }
         try (FileOutputStream fileOut = new FileOutputStream(blockedIndex);
              ObjectOutputStream objectStream = new ObjectOutputStream(fileOut)) {

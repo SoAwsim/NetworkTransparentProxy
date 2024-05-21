@@ -85,6 +85,7 @@ public class ServerHandler implements Runnable {
 
                 // Check if host is blocked
                 if (storage.isBlocked(serverIP)) {
+                    System.out.println("Blocked");
                     error403();
                     return;
                 }
