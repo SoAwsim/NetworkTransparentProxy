@@ -6,6 +6,7 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.*;
+import java.util.Date;
 
 public class SSLHandler implements Runnable {
     private final Socket clientSock;
@@ -76,6 +77,11 @@ public class SSLHandler implements Runnable {
 
                 if (hostAddr == null) {
                     // Host address not found! Drop the connection
+                    return;
+                }
+
+                if (storage.isBlocked(hostAddr)) {
+                    error403();
                     return;
                 }
 
@@ -217,5 +223,24 @@ public class SSLHandler implements Runnable {
         String hostname = new String(sharedBuffer, bufferIndex-currentLength, currentLength);
         System.out.println(hostname);
         return hostname;
+    }
+
+    private void sendErrorToClient(String response) {
+        try {
+            clientOut.writeBytes(response);
+        } catch (IOException ex) {
+            // TODO show ui error
+            throw new RuntimeException(ex);
+        }
+    }
+
+    private void error403() {
+        String html = "<html><body><h1>403 Forbidden</h1></body></html>\r\n";
+        String response = "HTTP/1.1 403 Forbidden\r\n"
+                + "Date: " + new Date() + "\r\n"
+                + "Server: CSE471 Proxy\r\n"
+                + "Content-Length: " + html.length() + "\r\n"
+                + "Content-Type: text/html; charset=UTF-8\r\n\r\n" + html;
+        sendErrorToClient(response);
     }
 }
