@@ -19,9 +19,8 @@ public class SSLHandler implements Runnable {
     private final ProxyStorage storage;
 
     private static final int SERVER_TIMEOUT = 300;
-    private static final int BUFFER_SIZE = 8192;
 
-    private final byte[] sharedBuffer = new byte[BUFFER_SIZE];
+    private final byte[] sharedBuffer = new byte[102400];
     int bufferIndex = 0;
 
     public SSLHandler (Socket socket, ProxyStorage storage) throws IOException {
@@ -76,7 +75,8 @@ public class SSLHandler implements Runnable {
                 }
 
                 if (hostAddr == null) {
-                    throw new IOException("Host address not found!");
+                    // Host address not found! Drop the connection
+                    return;
                 }
 
                 if (serverSocket == null) {
@@ -95,7 +95,6 @@ public class SSLHandler implements Runnable {
                 // Return 200 OK to the client
                 if (connectReq) {
                     clientOut.writeBytes("HTTP/1.1 200 OK\r\n\r\n");
-                    clientOut.flush();
                     continue;
                 }
 
@@ -121,9 +120,6 @@ public class SSLHandler implements Runnable {
             // Close the connection
         } catch (SocketException ignore) {
             // Closed from remote ignore
-        } catch (IndexOutOfBoundsException e) {
-            System.out.println(bufferIndex);
-            throw e;
         } catch (IOException e) {
             throw new RuntimeException(e);
         } finally {
