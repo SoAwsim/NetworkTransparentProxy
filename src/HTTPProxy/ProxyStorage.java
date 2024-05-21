@@ -94,7 +94,11 @@ public class ProxyStorage {
 
     public void blockAddress(String address) throws IOException {
         InetAddress ip = InetAddress.getByName(address);
-        String previous = blockedMap.putIfAbsent(ip.getHostName(), ip.getHostAddress());
+        String hostname = ip.getHostName();
+        if (hostname.startsWith("www.")) {
+            hostname = hostname.substring(4);
+        }
+        String previous = blockedMap.putIfAbsent(hostname, ip.getHostAddress());
         if (previous == null) {
             try (FileOutputStream fileOut = new FileOutputStream(blockedIndex);
                  ObjectOutputStream objectStream = new ObjectOutputStream(fileOut)) {
