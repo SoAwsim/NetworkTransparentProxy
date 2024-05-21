@@ -177,20 +177,49 @@ public class SSLHandler implements Runnable {
             }
             bufferIndex += clientIn.read(sharedBuffer, bufferIndex, 37);
         }
+        // Variable to store the current fields length
+        int currentLength;
 
-        int sessionIdLength = sharedBuffer[bufferIndex - 1];
-        bufferIndex += clientIn.read(sharedBuffer, bufferIndex, sessionIdLength + 2);
-        int cipherSuiteLength = ((sharedBuffer[bufferIndex - 2] & 0xff) << 8) | (sharedBuffer[bufferIndex - 1] & 0xff);
-        bufferIndex += clientIn.read(sharedBuffer, bufferIndex, cipherSuiteLength + 1);
-        int compressionMethodLength = sharedBuffer[bufferIndex - 1];
-        bufferIndex += clientIn.read(sharedBuffer, bufferIndex, compressionMethodLength + 2);
-        int currentExtensionLength;
-        bufferIndex += clientIn.read(sharedBuffer, bufferIndex, 9);
-        currentExtensionLength = ((sharedBuffer[bufferIndex - 2] & 0xff) << 8) | (sharedBuffer[bufferIndex - 1] & 0xff);
-        bufferIndex += clientIn.read(sharedBuffer, bufferIndex, currentExtensionLength);
-        String a = new String(sharedBuffer, bufferIndex-currentExtensionLength, currentExtensionLength);
-        System.out.println(a);
-        // todo maybe handle if hostname is not the first field
-        return a;
+        // Session ID 1 Byte
+        currentLength = sharedBuffer[bufferIndex - 1];
+        bufferIndex += clientIn.read(sharedBuffer, bufferIndex, currentLength + 2);
+
+        // Cipher Suite Length 2 Bytes
+        currentLength = ((sharedBuffer[bufferIndex - 2] & 0xff) << 8) | (sharedBuffer[bufferIndex - 1] & 0xff);
+        bufferIndex += clientIn.read(sharedBuffer, bufferIndex, currentLength + 1);
+
+        // Compression Method Length 1 Byte
+        currentLength = sharedBuffer[bufferIndex - 1];
+        bufferIndex += clientIn.read(sharedBuffer, bufferIndex, currentLength + 2);
+
+        // Extension field total length
+        currentLength = ((sharedBuffer[bufferIndex - 2] & 0xff) << 8) | (sharedBuffer[bufferIndex - 1] & 0xff);
+        boolean nameFound = false;
+        for (int readSize = 0, extensionLength; readSize < currentLength; ) {
+            // Read extension type and length
+            bufferIndex += clientIn.read(sharedBuffer, bufferIndex, 4);
+            readSize += 4;
+            // Is this the server name extension?
+            if (sharedBuffer[bufferIndex - 3] == (byte) 0x00 && sharedBuffer[bufferIndex - 4] == (byte) 0x00) {
+                // Read server name length
+                bufferIndex += clientIn.read(sharedBuffer, bufferIndex, 5);
+                nameFound = true;
+                break;
+            } else {
+                extensionLength = ((sharedBuffer[bufferIndex - 2] & 0xff) << 8) | (sharedBuffer[bufferIndex - 1] & 0xff);
+                bufferIndex += clientIn.read(sharedBuffer, bufferIndex, extensionLength);
+            }
+        }
+
+        if (!nameFound) {
+            return null;
+        }
+
+        // Hostname length
+        currentLength = ((sharedBuffer[bufferIndex - 2] & 0xff) << 8) | (sharedBuffer[bufferIndex - 1] & 0xff);
+        bufferIndex += clientIn.read(sharedBuffer, bufferIndex, currentLength);
+        String hostname = new String(sharedBuffer, bufferIndex-currentLength, currentLength);
+        System.out.println(hostname);
+        return hostname;
     }
 }
