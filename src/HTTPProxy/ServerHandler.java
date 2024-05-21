@@ -18,7 +18,7 @@ public class ServerHandler implements Runnable {
     private boolean keepConnection = true;
 
     private int tempData = -2;
-    private static final int SERVER_TIMEOUT = 1000;
+    private static final int SERVER_TIMEOUT = 300;
 
     // Throw IOException to upper level since this Runnable should not execute
     public ServerHandler(Socket c, ProxyStorage storage) throws IOException {
