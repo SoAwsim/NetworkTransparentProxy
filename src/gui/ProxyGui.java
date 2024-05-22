@@ -1,9 +1,9 @@
 package gui;
 
-import HTTPProxy.ProxyServer;
-import HTTPProxy.ProxyStorage;
-import HTTPSProxy.SSLProxy;
-import logger.Logger;
+import proxy.HTTPProxy.ProxyServer;
+import proxy.utils.ProxyStorage;
+import proxy.HTTPSProxy.SSLProxy;
+import proxy.utils.Logger;
 
 import javax.swing.*;
 import javax.swing.filechooser.FileSystemView;

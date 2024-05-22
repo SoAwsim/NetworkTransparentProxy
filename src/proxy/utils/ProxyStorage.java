@@ -1,4 +1,4 @@
-package HTTPProxy;
+package proxy.utils;
 
 import java.io.*;
 import java.net.InetAddress;

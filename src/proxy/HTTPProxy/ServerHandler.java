@@ -1,6 +1,7 @@
-package HTTPProxy;
+package proxy.HTTPProxy;
 
-import logger.Logger;
+import proxy.utils.Logger;
+import proxy.utils.ProxyStorage;
 
 import java.io.*;
 import java.net.*;

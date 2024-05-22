@@ -1,32 +1,34 @@
-package HTTPSProxy;
+package proxy.HTTPProxy;
 
-import HTTPProxy.ProxyStorage;
+import gui.ErrorDisplay;
+import proxy.utils.ProxyStorage;
 
 import java.io.IOException;
-import java.net.ServerSocket;
-import java.net.Socket;
-import java.net.SocketException;
+import java.net.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
-public class SSLProxy implements Runnable {
-    private ServerSocket serverSocket;
+// curl --proxy localhost:8080 --head http://www.google.com
+
+public class ProxyServer implements Runnable {
+    private ServerSocket ServerSock;
+    private final ErrorDisplay edManager;
     private final ProxyStorage storage;
 
-    public SSLProxy (ProxyStorage storage) throws IOException {
-        this.storage = storage;
+    public ProxyServer(ErrorDisplay ed, ProxyStorage storage) {
+        this.edManager = ed;
         this.initSock();
+        this.storage = storage;
     }
-
     @Override
     public void run() {
         ExecutorService executorThreads = Executors.newFixedThreadPool(10);
         try {
             while (true) {
-                Socket sslSocket = serverSocket.accept();
+                Socket conSock = ServerSock.accept();
                 try {
-                    executorThreads.execute(new SSLHandler(sslSocket, storage));
+                    executorThreads.execute(new ServerHandler(conSock, storage));
                 }
                 catch (IOException ex) {
                     // TODO handle this better
@@ -38,9 +40,11 @@ public class SSLProxy implements Runnable {
             System.out.println("Socket closed shutting down server");
         }
         catch (IOException e) {
-            System.out.println("IO error in HTTPs server");
+            // TODO Handle this better
+            edManager.showExceptionWindow(e);
         }
         finally {
+            // Oracle recommended way of shutting down the executor service
             executorThreads.shutdown(); // Stop accepting new jobs
             try {
                 // Wait for termination
@@ -58,22 +62,22 @@ public class SSLProxy implements Runnable {
     }
 
     public void initSock() {
-        if (serverSocket == null) {
+        if (ServerSock == null) {
             try {
-                serverSocket = new ServerSocket(443);
+                ServerSock = new ServerSocket(80);
             } catch (IOException e) {
-                System.out.println("Failed to create socket");
+                edManager.showExceptionWindow(e);
             }
         }
     }
 
     public void closeSock() {
-        if (serverSocket != null) {
+        if (ServerSock != null) {
             try {
-                serverSocket.close();
-                serverSocket = null;
+                ServerSock.close();
+                ServerSock = null;
             } catch (IOException e) {
-                System.out.println("Failed to close socket!");
+                edManager.showExceptionWindow(e);
             }
         }
     }

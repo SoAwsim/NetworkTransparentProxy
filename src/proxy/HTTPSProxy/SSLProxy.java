@@ -1,33 +1,32 @@
-package HTTPProxy;
+package proxy.HTTPSProxy;
 
-import gui.ErrorDisplay;
+import proxy.utils.ProxyStorage;
 
 import java.io.IOException;
-import java.net.*;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.net.SocketException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
-// curl --proxy localhost:8080 --head http://www.google.com
-
-public class ProxyServer implements Runnable {
-    private ServerSocket ServerSock;
-    private final ErrorDisplay edManager;
+public class SSLProxy implements Runnable {
+    private ServerSocket serverSocket;
     private final ProxyStorage storage;
 
-    public ProxyServer(ErrorDisplay ed, ProxyStorage storage) {
-        this.edManager = ed;
-        this.initSock();
+    public SSLProxy (ProxyStorage storage) throws IOException {
         this.storage = storage;
+        this.initSock();
     }
+
     @Override
     public void run() {
         ExecutorService executorThreads = Executors.newFixedThreadPool(10);
         try {
             while (true) {
-                Socket conSock = ServerSock.accept();
+                Socket sslSocket = serverSocket.accept();
                 try {
-                    executorThreads.execute(new ServerHandler(conSock, storage));
+                    executorThreads.execute(new SSLHandler(sslSocket, storage));
                 }
                 catch (IOException ex) {
                     // TODO handle this better
@@ -39,11 +38,9 @@ public class ProxyServer implements Runnable {
             System.out.println("Socket closed shutting down server");
         }
         catch (IOException e) {
-            // TODO Handle this better
-            edManager.showExceptionWindow(e);
+            System.out.println("IO error in HTTPs server");
         }
         finally {
-            // Oracle recommended way of shutting down the executor service
             executorThreads.shutdown(); // Stop accepting new jobs
             try {
                 // Wait for termination
@@ -61,22 +58,22 @@ public class ProxyServer implements Runnable {
     }
 
     public void initSock() {
-        if (ServerSock == null) {
+        if (serverSocket == null) {
             try {
-                ServerSock = new ServerSocket(80);
+                serverSocket = new ServerSocket(443);
             } catch (IOException e) {
-                edManager.showExceptionWindow(e);
+                System.out.println("Failed to create socket");
             }
         }
     }
 
     public void closeSock() {
-        if (ServerSock != null) {
+        if (serverSocket != null) {
             try {
-                ServerSock.close();
-                ServerSock = null;
+                serverSocket.close();
+                serverSocket = null;
             } catch (IOException e) {
-                edManager.showExceptionWindow(e);
+                System.out.println("Failed to close socket!");
             }
         }
     }

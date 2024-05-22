@@ -1,4 +1,4 @@
-package HTTPProxy;
+package proxy.HTTPProxy;
 
 import java.util.*;
 

@@ -1,12 +1,11 @@
-package HTTPSProxy;
+package proxy.HTTPSProxy;
 
-import HTTPProxy.ProxyStorage;
+import proxy.utils.ProxyStorage;
 
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.*;
-import java.util.Date;
 
 public class SSLHandler implements Runnable {
     private final Socket clientSock;

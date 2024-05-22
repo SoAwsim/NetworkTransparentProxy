@@ -1,4 +1,4 @@
-package logger;
+package proxy.utils;
 
 import java.net.InetAddress;
 import java.net.URL;
