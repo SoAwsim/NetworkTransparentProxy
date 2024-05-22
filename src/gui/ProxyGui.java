@@ -162,22 +162,35 @@ public class ProxyGui implements ErrorDisplay {
                 JFileChooser fileChooser = new JFileChooser(FileSystemView.getFileSystemView().getHomeDirectory());
                 int result = fileChooser.showSaveDialog(mainWindow);
                 if (result == JFileChooser.APPROVE_OPTION) {
-                    SwingWorker<Object, Object> saveToText = new SwingWorker<>() {
+                    SwingWorker<Integer, Object> saveToText = new SwingWorker<>() {
                         @Override
-                        protected Object doInBackground() throws Exception {
+                        protected Integer doInBackground() {
                             try (FileOutputStream txtOut = new FileOutputStream(fileChooser.getSelectedFile());
                                  BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(txtOut))) {
                                 for (String s : logs) {
                                     writer.write(s);
                                     writer.newLine();
                                 }
+                            } catch (IOException e) {
+                                return 1;
                             }
-                            return null;
+                            return 0;
                         }
 
                         @Override
                         protected void done() {
-                            JOptionPane.showMessageDialog(mainWindow, "File saved", "Confirmation", JOptionPane.INFORMATION_MESSAGE);
+                            int result;
+                            try {
+                                result = get();
+                            } catch (Exception e) {
+                                JOptionPane.showMessageDialog(mainWindow, "Report saving failed!", "IO Error", JOptionPane.ERROR_MESSAGE);
+                                return;
+                            }
+                            if (result == 0) {
+                                JOptionPane.showMessageDialog(mainWindow, "File saved", "Confirmation", JOptionPane.INFORMATION_MESSAGE);
+                            } else {
+                                JOptionPane.showMessageDialog(mainWindow, "Report saving failed!", "IO Error", JOptionPane.ERROR_MESSAGE);
+                            }
                         }
                     };
                     saveToText.execute();
