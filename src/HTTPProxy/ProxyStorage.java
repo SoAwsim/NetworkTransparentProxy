@@ -21,7 +21,7 @@ public class ProxyStorage {
 
     public static ProxyStorage getStorage() throws IOException {
         ProxyStorage obj = obj_instance;
-        if (obj_instance == null) {
+        if (obj == null) {
             synchronized (obj_lock) {
                 // While a thread was waiting for this lock another thread might have initialized it
                 obj = obj_instance;
