@@ -39,6 +39,15 @@ public class Logger {
         clientQueue.add(log);
     }
 
+    public void addLog(InetAddress clientIP, String host) {
+        var clientQueue = clientReports.putIfAbsent(clientIP.getHostAddress(), new ConcurrentLinkedQueue<>());
+        if (clientQueue == null) {
+            clientQueue = clientReports.get(clientIP.getHostAddress());
+        }
+        String log = "IP: " + clientIP.getHostAddress() + ", Domain: " + host + ", Connection: HTTPS";
+        clientQueue.add(log);
+    }
+
     public String[] getClientLog(String clientIP) {
         var clientQueue = clientReports.get(clientIP);
         if (clientQueue == null) {

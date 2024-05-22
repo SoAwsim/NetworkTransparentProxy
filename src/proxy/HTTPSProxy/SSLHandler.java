@@ -1,39 +1,20 @@
 package proxy.HTTPSProxy;
 
-import proxy.utils.ProxyStorage;
+import proxy.AbstractProxyHandler;
 
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.*;
 
-public class SSLHandler implements Runnable {
-    // Connected client
-    private final Socket clientSock;
-    private final DataInputStream clientIn;
-    private final DataOutputStream clientOut;
-
-    // Connected server
-    private Socket serverSocket;
-    private DataInputStream serverIn;
-    private DataOutputStream serverOut;
-
-    // Storage used for accessing blocked websites
-    private final ProxyStorage storage;
-
-    // Default server timeout value
-    private static final int SERVER_TIMEOUT = 300;
-
+public final class SSLHandler extends AbstractProxyHandler {
     // A buffer to store possible SNI Client Hello
     private final byte[] sharedBuffer = new byte[102400];
     int bufferIndex = 0;
 
     public SSLHandler (Socket socket) throws IOException {
-        clientSock = socket;
-        storage = ProxyStorage.getStorage();
-        clientSock.setSoTimeout(SERVER_TIMEOUT);
-        clientIn = new DataInputStream(clientSock.getInputStream());
-        clientOut = new DataOutputStream(clientSock.getOutputStream());
+        super(socket);
+        SERVER_TIMEOUT = 300;
     }
 
     @Override
@@ -125,6 +106,7 @@ public class SSLHandler implements Runnable {
                 } catch (SocketTimeoutException ignore) {
 
                 }
+                clientLogs.addLog(clientSock.getInetAddress(), hostAddr.getHostName());
             } while (true);
         } catch (SocketTimeoutException ignore) {
             // Close the connection
@@ -145,7 +127,7 @@ public class SSLHandler implements Runnable {
         }
     }
 
-    private String readHeader() throws IOException, ArrayIndexOutOfBoundsException {
+    protected String readHeader() throws IOException, ArrayIndexOutOfBoundsException {
         int temp;
         do {
             // readByte throws IOException instead of writing -1 to array so, I use this one
