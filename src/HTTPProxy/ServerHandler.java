@@ -1,5 +1,7 @@
 package HTTPProxy;
 
+import logger.Logger;
+
 import java.io.*;
 import java.net.*;
 import java.util.*;
@@ -14,8 +16,11 @@ public class ServerHandler implements Runnable {
     private DataOutputStream serverOut;
 
     private final ProxyStorage storage;
+    private final Logger clientLogs;
 
     private boolean keepConnection = true;
+
+    private int responseCode = -1;
 
     private int tempData = -2;
     private static final int SERVER_TIMEOUT = 300;
@@ -23,6 +28,7 @@ public class ServerHandler implements Runnable {
     // Throw IOException to upper level since this Runnable should not execute
     public ServerHandler(Socket c, ProxyStorage storage) throws IOException {
         clientSock = c;
+        clientLogs = Logger.getLogger();
         this.storage = storage;
         c.setSoTimeout(SERVER_TIMEOUT);
         clientIn = new DataInputStream(clientSock.getInputStream());
@@ -105,12 +111,16 @@ public class ServerHandler implements Runnable {
 
                     if (method.equalsIgnoreCase("get")) {
                         handleGet(header, url);
+                        clientLogs.addLog(clientSock.getInetAddress(), url, "GET", Integer.toString(responseCode));
                     } else if (method.equalsIgnoreCase("post")) {
                         handlePost(header);
+                        clientLogs.addLog(clientSock.getInetAddress(), url, "POST", Integer.toString(responseCode));
                     } else if (method.equalsIgnoreCase("head")) {
                         handleHead(header, url);
+                        clientLogs.addLog(clientSock.getInetAddress(), url, "HEAD", Integer.toString(responseCode));
                     } else if (method.equalsIgnoreCase("options")) {
                         handleOptions(header);
+                        clientLogs.addLog(clientSock.getInetAddress(), url, "OPTIONS", Integer.toString(responseCode));
                     } else {
                         error405();
                         return;
@@ -150,8 +160,22 @@ public class ServerHandler implements Runnable {
     // Overloaded function, this one does not do caching suitable for post, options
     private void sendAllDataToClient() throws IOException {
         boolean serverRead = false;
+        byte[] responseBuffer = new byte[20];
+        int readBytes = serverIn.read(responseBuffer, 0, 20);
+        if (readBytes == -1) {
+            keepConnection = false;
+            return;
+        }
+        String header = new String(responseBuffer);
+        int firstSpace = header.indexOf(' ');
+        try {
+            responseCode = Integer.parseInt(header.substring(firstSpace + 1 , firstSpace + 4));
+        } catch (NumberFormatException e) {
+            responseCode = -1;
+        }
         while (true) {
             try {
+                clientOut.write(responseBuffer, 0, readBytes);
                 serverIn.transferTo(clientOut);
             } catch (SocketTimeoutException ex) {
                 // no data sent in SERVER_TIMEOUT ms
@@ -196,6 +220,12 @@ public class ServerHandler implements Runnable {
             }
         }
 
+        int firstSpace = responseHeader.indexOf(' ');
+        try {
+            responseCode = Integer.parseInt(responseHeader.substring(firstSpace + 1, firstSpace + 4));
+        } catch (NumberFormatException e) {
+            responseCode = -1;
+        }
         int secondLine = responseHeader.indexOf('\r') + 2;
         String cacheDate = canCache(new MimeHeader(responseHeader.substring(secondLine)));
         System.out.println("Data cache: " + cacheDate);

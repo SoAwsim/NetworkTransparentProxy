@@ -3,6 +3,7 @@ package gui;
 import HTTPProxy.ProxyServer;
 import HTTPProxy.ProxyStorage;
 import HTTPSProxy.SSLProxy;
+import logger.Logger;
 
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
@@ -22,6 +23,7 @@ public class ProxyGui implements ErrorDisplay {
     private ProxyServer httpProxy;
     private SSLProxy httpsProxy;
     private ProxyStorage storage;
+    private final Logger clientLogs;
 
     private final DefaultTableModel blockedTableModel;
 
@@ -32,6 +34,8 @@ public class ProxyGui implements ErrorDisplay {
             System.out.println("IO error occurred while getting saved data");
             storage = null;
         }
+
+        clientLogs = Logger.getLogger();
 
         mainWindow = new JFrame("Transparent Proxy");
         mainWindow.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
@@ -144,7 +148,21 @@ public class ProxyGui implements ErrorDisplay {
 
         JMenuItem createReport = new JMenuItem("Report");
         createReport.addActionListener(e -> {
-            /* TODO implement logging component*/
+            do {
+                String client = JOptionPane.showInputDialog("Enter Client IP address");
+                if (client == null || client.isBlank()) {
+                    break;
+                }
+                String[] logs = clientLogs.getClientLog(client);
+                if (logs == null) {
+                    JOptionPane.showMessageDialog(mainWindow, "Client Not Found", "Address Error", JOptionPane.ERROR_MESSAGE);
+                    continue;
+                }
+                for (var str: logs) {
+                    System.out.println(str);
+                }
+                break;
+            } while (true);
         });
 
         JMenuItem filterHost = new JMenuItem("Add host to filter");

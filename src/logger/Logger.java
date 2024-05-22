@@ -1,6 +1,5 @@
 package logger;
 
-import java.io.IOException;
 import java.net.InetAddress;
 import java.net.URL;
 import java.util.concurrent.ConcurrentHashMap;
@@ -38,5 +37,13 @@ public class Logger {
         String log = "IP: " + clientIP.getHostAddress() + ", Domain: " + domain.getHost() +
                 ", Resource path: " + domain.getPath() + ", Method: " + method + ", Response: " + responseCode;
         clientQueue.add(log);
+    }
+
+    public String[] getClientLog(String clientIP) {
+        var clientQueue = clientReports.get(clientIP);
+        if (clientQueue == null) {
+            return null;
+        }
+        return clientQueue.toArray(String[]::new);
     }
 }
