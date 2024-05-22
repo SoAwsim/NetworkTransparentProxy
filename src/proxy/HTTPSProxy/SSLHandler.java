@@ -8,24 +8,29 @@ import java.io.IOException;
 import java.net.*;
 
 public class SSLHandler implements Runnable {
+    // Connected client
     private final Socket clientSock;
     private final DataInputStream clientIn;
     private final DataOutputStream clientOut;
 
+    // Connected server
     private Socket serverSocket;
     private DataInputStream serverIn;
     private DataOutputStream serverOut;
 
+    // Storage used for accessing blocked websites
     private final ProxyStorage storage;
 
+    // Default server timeout value
     private static final int SERVER_TIMEOUT = 300;
 
+    // A buffer to store possible SNI Client Hello
     private final byte[] sharedBuffer = new byte[102400];
     int bufferIndex = 0;
 
-    public SSLHandler (Socket socket, ProxyStorage storage) throws IOException {
+    public SSLHandler (Socket socket) throws IOException {
         clientSock = socket;
-        this.storage = storage;
+        storage = ProxyStorage.getStorage();
         clientSock.setSoTimeout(SERVER_TIMEOUT);
         clientIn = new DataInputStream(clientSock.getInputStream());
         clientOut = new DataOutputStream(clientSock.getOutputStream());

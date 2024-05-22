@@ -1,7 +1,5 @@
 package proxy.HTTPSProxy;
 
-import proxy.utils.ProxyStorage;
-
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -12,10 +10,8 @@ import java.util.concurrent.TimeUnit;
 
 public class SSLProxy implements Runnable {
     private ServerSocket serverSocket;
-    private final ProxyStorage storage;
 
-    public SSLProxy (ProxyStorage storage) throws IOException {
-        this.storage = storage;
+    public SSLProxy () throws IOException {
         this.initSock();
     }
 
@@ -26,7 +22,7 @@ public class SSLProxy implements Runnable {
             while (true) {
                 Socket sslSocket = serverSocket.accept();
                 try {
-                    executorThreads.execute(new SSLHandler(sslSocket, storage));
+                    executorThreads.execute(new SSLHandler(sslSocket));
                 }
                 catch (IOException ex) {
                     // TODO handle this better

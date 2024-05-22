@@ -111,7 +111,7 @@ public class ProxyGui implements ErrorDisplay {
             if (serverThread == null) {
                 httpProxy = new ProxyServer(this, storage);
                 try {
-                    httpsProxy = new SSLProxy(storage);
+                    httpsProxy = new SSLProxy();
                 } catch (IOException ex) {
                     System.out.println("Failed to create HTTPS proxy");
                 }
