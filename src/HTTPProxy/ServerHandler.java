@@ -160,22 +160,8 @@ public class ServerHandler implements Runnable {
     // Overloaded function, this one does not do caching suitable for post, options
     private void sendAllDataToClient() throws IOException {
         boolean serverRead = false;
-        byte[] responseBuffer = new byte[20];
-        int readBytes = serverIn.read(responseBuffer, 0, 20);
-        if (readBytes == -1) {
-            keepConnection = false;
-            return;
-        }
-        String header = new String(responseBuffer);
-        int firstSpace = header.indexOf(' ');
-        try {
-            responseCode = Integer.parseInt(header.substring(firstSpace + 1 , firstSpace + 4));
-        } catch (NumberFormatException e) {
-            responseCode = -1;
-        }
         while (true) {
             try {
-                clientOut.write(responseBuffer, 0, readBytes);
                 serverIn.transferTo(clientOut);
             } catch (SocketTimeoutException ex) {
                 // no data sent in SERVER_TIMEOUT ms
@@ -396,6 +382,8 @@ public class ServerHandler implements Runnable {
         System.out.println(header);
 
         String responseHeader = readHeader(serverIn);
+        int firstSpace = responseHeader.indexOf(' ');
+        responseCode = Integer.parseInt(responseHeader.substring(firstSpace + 1, firstSpace + 4));
         clientOut.writeBytes(responseHeader);
         sendAllDataToClient();
     }
@@ -404,6 +392,11 @@ public class ServerHandler implements Runnable {
         serverOut.writeBytes(header);
         System.out.println("Sent OPTIONS request to server");
         System.out.println(header);
+
+        String responseHeader = readHeader(serverIn);
+        int firstSpace = responseHeader.indexOf(' ');
+        responseCode = Integer.parseInt(responseHeader.substring(firstSpace + 1, firstSpace + 4));
+        clientOut.writeBytes(responseHeader);
         sendAllDataToClient();
     }
 
