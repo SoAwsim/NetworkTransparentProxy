@@ -383,7 +383,11 @@ public class ServerHandler implements Runnable {
 
         String responseHeader = readHeader(serverIn);
         int firstSpace = responseHeader.indexOf(' ');
-        responseCode = Integer.parseInt(responseHeader.substring(firstSpace + 1, firstSpace + 4));
+        try {
+            responseCode = Integer.parseInt(responseHeader.substring(firstSpace + 1, firstSpace + 4));
+        } catch (NumberFormatException e) {
+            responseCode = -1;
+        }
         clientOut.writeBytes(responseHeader);
         sendAllDataToClient();
     }
@@ -395,7 +399,11 @@ public class ServerHandler implements Runnable {
 
         String responseHeader = readHeader(serverIn);
         int firstSpace = responseHeader.indexOf(' ');
-        responseCode = Integer.parseInt(responseHeader.substring(firstSpace + 1, firstSpace + 4));
+        try {
+            responseCode = Integer.parseInt(responseHeader.substring(firstSpace + 1, firstSpace + 4));
+        } catch (NumberFormatException e) {
+            responseCode = -1;
+        }
         clientOut.writeBytes(responseHeader);
         sendAllDataToClient();
     }
