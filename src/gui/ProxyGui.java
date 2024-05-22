@@ -6,9 +6,10 @@ import HTTPSProxy.SSLProxy;
 import logger.Logger;
 
 import javax.swing.*;
+import javax.swing.filechooser.FileSystemView;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
-import java.io.IOException;
+import java.io.*;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 
@@ -158,9 +159,30 @@ public class ProxyGui implements ErrorDisplay {
                     JOptionPane.showMessageDialog(mainWindow, "Client Not Found", "Address Error", JOptionPane.ERROR_MESSAGE);
                     continue;
                 }
-                for (var str: logs) {
-                    System.out.println(str);
+                JFileChooser fileChooser = new JFileChooser(FileSystemView.getFileSystemView().getHomeDirectory());
+                int result = fileChooser.showSaveDialog(mainWindow);
+                if (result == JFileChooser.APPROVE_OPTION) {
+                    SwingWorker<Object, Object> saveToText = new SwingWorker<>() {
+                        @Override
+                        protected Object doInBackground() throws Exception {
+                            try (FileOutputStream txtOut = new FileOutputStream(fileChooser.getSelectedFile());
+                                 BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(txtOut))) {
+                                for (String s : logs) {
+                                    writer.write(s);
+                                    writer.newLine();
+                                }
+                            }
+                            return null;
+                        }
+
+                        @Override
+                        protected void done() {
+                            JOptionPane.showMessageDialog(mainWindow, "File saved", "Confirmation", JOptionPane.INFORMATION_MESSAGE);
+                        }
+                    };
+                    saveToText.execute();
                 }
+
                 break;
             } while (true);
         });
