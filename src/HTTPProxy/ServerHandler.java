@@ -23,7 +23,7 @@ public class ServerHandler implements Runnable {
     private int responseCode = -1;
 
     private int tempData = -2;
-    private static final int SERVER_TIMEOUT = 300;
+    private static final int SERVER_TIMEOUT = 2000;
 
     // Throw IOException to upper level since this Runnable should not execute
     public ServerHandler(Socket c, ProxyStorage storage) throws IOException {
