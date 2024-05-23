@@ -8,8 +8,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
-// curl --proxy localhost:8080 --head http://www.google.com
-
 public class ProxyServer implements Runnable {
     private ServerSocket ServerSock;
     private final ErrorDisplay edManager;
