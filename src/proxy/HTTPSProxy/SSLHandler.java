@@ -27,7 +27,10 @@ public final class SSLHandler extends AbstractProxyHandler {
                 bufferIndex = 0;
                 // If the client connected with the connect method no need to parse the contents again just relay information
                 if (!connectReq) {
-                    bufferIndex += clientIn.read(sharedBuffer, 0, 7);
+                    try {
+                        bufferIndex += clientIn.read(sharedBuffer, 0, 7);
+                    } catch (SocketTimeoutException ignore) {
+                    }
                     if (bufferIndex == -1) {
                         return;
                     }
@@ -37,36 +40,42 @@ public final class SSLHandler extends AbstractProxyHandler {
                                 sharedBuffer[0] == 'C' && sharedBuffer[1] == 'O' && sharedBuffer[2] == 'N' && sharedBuffer[3] == 'N'
                                         && sharedBuffer[4] == 'E' && sharedBuffer[5] == 'C' && sharedBuffer[6] == 'T'
                         ) {
-                            String header = readHeader();
+                            String header = null;
+                            try {
+                                header = readHeader();
+                            } catch (SocketTimeoutException ignore) {
+                            }
+                            if (header == null) { // This is an error from the client side exit directly
+                                return;
+                            }
                             int firstSpace = header.indexOf(' ');
                             int portDiv = header.indexOf(':');
                             hostAddr = InetAddress.getByName(header.substring(firstSpace + 1, portDiv));
                             connectReq = true;
                         } else {
                             // Send rest of the data to the server
-                            String strHost = readSNI();
+                            String strHost = null;
+                            try {
+                                strHost = readSNI();
+                            } catch (SocketTimeoutException ignore) {
+                            }
                             if (strHost != null) {
                                 hostAddr = InetAddress.getByName(strHost);
                             }
                         }
                     } catch (UnknownHostException ignore) {
                         // Ignore for now
-                    } catch (ArrayIndexOutOfBoundsException e) {
-                        throw new RuntimeException(e);
+                    } catch (ArrayIndexOutOfBoundsException e) { // Buffer overflow exit directly
+                        return;
                     }
                 }
                 else {
-                    // Reset this flag since client may want to initiate another connection in the future
+                    // Reset this flag since client may want to initiate another connection using the same port
                     connectReq = false;
                 }
 
-                if (hostAddr == null) {
-                    // Host address not found! Drop the connection
-                    return;
-                }
-
-                if (storage.isBlocked(hostAddr)) {
-                    // Drop the HTTPS connection since domain is blocked
+                if (hostAddr == null || storage.isBlocked(hostAddr)) {
+                    // Host address not found, or the domain is blocked, directly drop the connection
                     return;
                 }
 
@@ -91,20 +100,21 @@ public final class SSLHandler extends AbstractProxyHandler {
 
                 // Transfer buffered data to the server
                 if (bufferIndex != 0) {
-                    serverOut.write(sharedBuffer, 0, bufferIndex);
+                    try {
+                        serverOut.write(sharedBuffer, 0, bufferIndex);
+                    } catch (SocketTimeoutException ignore) {
+                    }
                 }
 
                 try {
                     clientIn.transferTo(serverOut);
                 } catch (SocketTimeoutException ignore) {
-
                 }
 
                 // Transfer the response back to the client
                 try {
                     serverIn.transferTo(clientOut);
                 } catch (SocketTimeoutException ignore) {
-
                 }
                 clientLogs.addLog(clientSock.getInetAddress(), hostAddr.getHostName());
             } while (true);
@@ -133,7 +143,7 @@ public final class SSLHandler extends AbstractProxyHandler {
             // readByte throws IOException instead of writing -1 to array so, I use this one
             temp = clientIn.read();
             if (temp == -1) {
-                throw new SocketTimeoutException("Client Disconnected");
+                throw new SocketException("Client Disconnected");
             }
             sharedBuffer[bufferIndex++] = (byte) temp;
         } while (sharedBuffer[bufferIndex - 1] != '\n' || sharedBuffer[bufferIndex - 2] != '\r'
