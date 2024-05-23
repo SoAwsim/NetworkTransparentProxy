@@ -15,7 +15,7 @@ public class ProxyServer extends AbstractProxyListener {
 
     @Override
     public void run() {
-        ExecutorService executorThreads = Executors.newFixedThreadPool(10);
+        ExecutorService executorThreads = Executors.newFixedThreadPool(SERVER_THREADS);
         try {
             while (serverOn) {
                 Socket clientConnection = serverListener.accept();
