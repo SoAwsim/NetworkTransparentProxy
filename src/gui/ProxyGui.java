@@ -109,7 +109,7 @@ public class ProxyGui implements ErrorDisplay {
         startProxy.addActionListener(e -> {
             /* TODO implement proxy start logic*/
             if (serverThread == null) {
-                httpProxy = new ProxyServer(this, storage);
+                httpProxy = new ProxyServer(this);
                 try {
                     httpsProxy = new SSLProxy();
                 } catch (IOException ex) {

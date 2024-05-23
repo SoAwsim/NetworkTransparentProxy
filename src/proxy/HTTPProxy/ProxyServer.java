@@ -14,12 +14,10 @@ import java.util.concurrent.TimeUnit;
 public class ProxyServer implements Runnable {
     private ServerSocket ServerSock;
     private final ErrorDisplay edManager;
-    private final ProxyStorage storage;
 
-    public ProxyServer(ErrorDisplay ed, ProxyStorage storage) {
+    public ProxyServer(ErrorDisplay ed) {
         this.edManager = ed;
         this.initSock();
-        this.storage = storage;
     }
     @Override
     public void run() {
@@ -28,7 +26,7 @@ public class ProxyServer implements Runnable {
             while (true) {
                 Socket conSock = ServerSock.accept();
                 try {
-                    executorThreads.execute(new ServerHandler(conSock, storage));
+                    executorThreads.execute(new ServerHandler(conSock));
                 }
                 catch (IOException ex) {
                     // TODO handle this better

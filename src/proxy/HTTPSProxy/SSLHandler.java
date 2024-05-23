@@ -12,8 +12,8 @@ public final class SSLHandler extends AbstractProxyHandler {
     private final byte[] sharedBuffer = new byte[102400];
     int bufferIndex = 0;
 
-    public SSLHandler (Socket socket) throws IOException {
-        super(socket);
+    public SSLHandler (Socket clientSocket) throws IOException {
+        super(clientSocket);
         SERVER_TIMEOUT = 300;
     }
 

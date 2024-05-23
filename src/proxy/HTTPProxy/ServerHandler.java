@@ -1,39 +1,19 @@
 package proxy.HTTPProxy;
 
-import proxy.utils.Logger;
-import proxy.utils.ProxyStorage;
+import proxy.AbstractProxyHandler;
 
 import java.io.*;
 import java.net.*;
 import java.util.*;
 
-public class ServerHandler implements Runnable {
-    private final Socket clientSock;
-    private final DataInputStream clientIn;
-    private final DataOutputStream clientOut;
-
-    private Socket serverSocket;
-    private DataInputStream serverIn;
-    private DataOutputStream serverOut;
-
-    private final ProxyStorage storage;
-    private final Logger clientLogs;
-
+public final class ServerHandler extends AbstractProxyHandler {
     private boolean keepConnection = true;
-
     private int responseCode = -1;
-
     private int tempData = -2;
-    private static final int SERVER_TIMEOUT = 2000;
 
     // Throw IOException to upper level since this Runnable should not execute
-    public ServerHandler(Socket c, ProxyStorage storage) throws IOException {
-        clientSock = c;
-        clientLogs = Logger.getLogger();
-        this.storage = storage;
-        c.setSoTimeout(SERVER_TIMEOUT);
-        clientIn = new DataInputStream(clientSock.getInputStream());
-        clientOut = new DataOutputStream(clientSock.getOutputStream());
+    public ServerHandler(Socket clientSocket) throws IOException {
+        super(clientSocket);
     }
 
     @Override
@@ -57,10 +37,8 @@ public class ServerHandler implements Runnable {
                 int methodFinIndex = header.indexOf(' ');
                 int pathFinIndex = header.indexOf(' ', methodFinIndex + 1);
 
-                String method = header.substring(0, methodFinIndex); // GET http://example.com/path HTTP/1.1
-                System.out.println("Log: " + method);
+                String method = header.substring(0, methodFinIndex);
                 String fullPath = header.substring(methodFinIndex + 1, pathFinIndex);
-                System.out.println("Log: " + fullPath);
 
                 URL url;
                 try {
@@ -73,7 +51,6 @@ public class ServerHandler implements Runnable {
                     if (!host.startsWith("http://")) {
                         host = "http://" + host + fullPath;
                     }
-                    System.out.println(host);
                     try {
                         url = new URL(host);
                     } catch (MalformedURLException ex) {
@@ -92,7 +69,7 @@ public class ServerHandler implements Runnable {
 
                 // Check if host is blocked
                 if (storage.isBlocked(serverIP)) {
-                    error403();
+                    error401();
                     return;
                 }
 
@@ -131,10 +108,11 @@ public class ServerHandler implements Runnable {
                 } catch (BadGatewayException ex) {
                     error502();
                     return;
-                } catch (SocketTimeoutException ex) { // Did the server close the connection?
+                } catch (SocketTimeoutException ignore) { // Did the server close the connection?
                     return;
-                } catch (UnknownHostException ex) {
-                    // Do not return anything to the client and close the connection
+                } catch (UnknownHostException ignore) { // Do not return anything to the client and close the connection
+                    return;
+                } catch (SocketException ignore) { // Connection closed by one of the peers
                     return;
                 } catch (IOException ex) {
                     throw new RuntimeException(ex);
@@ -152,8 +130,7 @@ public class ServerHandler implements Runnable {
                     serverOut.close();
                     serverSocket.close();
                 }
-            } catch (IOException e) {
-                System.out.println("Error closing the socket!");
+            } catch (IOException ignore) {
             }
         }
     }
@@ -409,7 +386,7 @@ public class ServerHandler implements Runnable {
         sendAllDataToClient();
     }
 
-    private String readHeader() throws IOException, ArrayIndexOutOfBoundsException {
+    protected String readHeader() throws IOException, ArrayIndexOutOfBoundsException {
         // Apache header limit is 8KB, so I also use this limit as well
         byte[] headerArr = new byte[8192];
         int temp;
@@ -467,9 +444,9 @@ public class ServerHandler implements Runnable {
         sendErrorToClient(response);
     }
 
-    private void error403() {
-        String html = "<html><body><h1>403 Forbidden</h1></body></html>\r\n";
-        String response = "HTTP/1.1 403 Forbidden\r\n"
+    private void error401() {
+        String html = "<html><body><h1>401 Unauthorized</h1></body></html>\r\n";
+        String response = "HTTP/1.1 401 Unauthorized\r\n"
                 + "Date: " + new Date() + "\r\n"
                 + "Server: CSE471 Proxy\r\n"
                 + "Content-Length: " + html.length() + "\r\n"
