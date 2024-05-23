@@ -1,28 +1,27 @@
 package proxy.HTTPSProxy;
 
+import proxy.AbstractProxyListener;
+
 import java.io.IOException;
-import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
-public class SSLProxy implements Runnable {
-    private ServerSocket serverSocket;
-
-    public SSLProxy () throws IOException {
-        this.initSock();
+public class SSLProxy extends AbstractProxyListener {
+    public SSLProxy (int port) throws IOException {
+        super(port);
     }
 
     @Override
     public void run() {
         ExecutorService executorThreads = Executors.newFixedThreadPool(10);
         try {
-            while (true) {
-                Socket sslSocket = serverSocket.accept();
+            while (serverOn) {
+                Socket clientConnection = serverListener.accept();
                 try {
-                    executorThreads.execute(new SSLHandler(sslSocket));
+                    executorThreads.execute(new SSLHandler(clientConnection));
                 }
                 catch (IOException ex) {
                     // TODO handle this better
@@ -49,27 +48,6 @@ public class SSLProxy implements Runnable {
             }
             finally {
                 System.out.println("All threads stopped executing");
-            }
-        }
-    }
-
-    public void initSock() {
-        if (serverSocket == null) {
-            try {
-                serverSocket = new ServerSocket(443);
-            } catch (IOException e) {
-                System.out.println("Failed to create socket");
-            }
-        }
-    }
-
-    public void closeSock() {
-        if (serverSocket != null) {
-            try {
-                serverSocket.close();
-                serverSocket = null;
-            } catch (IOException e) {
-                System.out.println("Failed to close socket!");
             }
         }
     }

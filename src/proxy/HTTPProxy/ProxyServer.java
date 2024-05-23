@@ -1,6 +1,6 @@
 package proxy.HTTPProxy;
 
-import gui.ErrorDisplay;
+import proxy.AbstractProxyListener;
 
 import java.io.IOException;
 import java.net.*;
@@ -8,22 +8,19 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
-public class ProxyServer implements Runnable {
-    private ServerSocket ServerSock;
-    private final ErrorDisplay edManager;
-
-    public ProxyServer(ErrorDisplay ed) {
-        this.edManager = ed;
-        this.initSock();
+public class ProxyServer extends AbstractProxyListener {
+    public ProxyServer(int port) throws IOException {
+        super(port);
     }
+
     @Override
     public void run() {
         ExecutorService executorThreads = Executors.newFixedThreadPool(10);
         try {
-            while (true) {
-                Socket conSock = ServerSock.accept();
+            while (serverOn) {
+                Socket clientConnection = serverListener.accept();
                 try {
-                    executorThreads.execute(new HTTPHandler(conSock));
+                    executorThreads.execute(new HTTPHandler(clientConnection));
                 }
                 catch (IOException ex) {
                     // TODO handle this better
@@ -36,7 +33,7 @@ public class ProxyServer implements Runnable {
         }
         catch (IOException e) {
             // TODO Handle this better
-            edManager.showExceptionWindow(e);
+            System.out.println("IO exception in HTTP proxy");
         }
         finally {
             // Oracle recommended way of shutting down the executor service
@@ -52,27 +49,6 @@ public class ProxyServer implements Runnable {
             }
             finally {
                 System.out.println("All threads stopped executing");
-            }
-        }
-    }
-
-    public void initSock() {
-        if (ServerSock == null) {
-            try {
-                ServerSock = new ServerSocket(80);
-            } catch (IOException e) {
-                edManager.showExceptionWindow(e);
-            }
-        }
-    }
-
-    public void closeSock() {
-        if (ServerSock != null) {
-            try {
-                ServerSock.close();
-                ServerSock = null;
-            } catch (IOException e) {
-                edManager.showExceptionWindow(e);
             }
         }
     }

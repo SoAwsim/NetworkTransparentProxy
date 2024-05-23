@@ -109,9 +109,14 @@ public class ProxyGui implements ErrorDisplay {
         startProxy.addActionListener(e -> {
             /* TODO implement proxy start logic*/
             if (serverThread == null) {
-                httpProxy = new ProxyServer(this);
                 try {
-                    httpsProxy = new SSLProxy();
+                    httpProxy = new ProxyServer(80);
+                } catch (IOException ex) {
+                    // todo handle it better
+                    throw new RuntimeException(ex);
+                }
+                try {
+                    httpsProxy = new SSLProxy(443);
                 } catch (IOException ex) {
                     System.out.println("Failed to create HTTPS proxy");
                 }
@@ -124,8 +129,18 @@ public class ProxyGui implements ErrorDisplay {
             else if (!serverThread.isAlive()) {
                 serverThread = new Thread(httpProxy);
                 serverSSLThread = new Thread(httpsProxy);
-                httpProxy.initSock();
-                httpsProxy.initSock();
+                try {
+                    httpProxy.initSock();
+                } catch (IOException ex) {
+                    // todo handle it better
+                    throw new RuntimeException(ex);
+                }
+                try {
+                    httpsProxy.initSock();
+                } catch (IOException ex) {
+                    // todo handle it better
+                    throw new RuntimeException(ex);
+                }
                 serverThread.start();
                 serverSSLThread.start();
                 proxyStatus.setText("Proxy Server is Running...");
@@ -142,8 +157,18 @@ public class ProxyGui implements ErrorDisplay {
         JMenuItem stopProxy = new JMenuItem("Stop");
         stopProxy.addActionListener(e -> {
             /* TODO implement proxy stop logic*/
-            httpProxy.closeSock();
-            httpsProxy.closeSock();
+            try {
+                httpProxy.closeSocket();
+            } catch (IOException ex) {
+                // todo handle it better
+                throw new RuntimeException(ex);
+            }
+            try {
+                httpsProxy.closeSocket();
+            } catch (IOException ex) {
+                // todo handle better
+                throw new RuntimeException(ex);
+            }
             proxyStatus.setText("Proxy Server is Stopped...");
         });
 
