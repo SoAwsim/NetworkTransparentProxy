@@ -20,17 +20,20 @@ public final class HTTPHandler extends AbstractProxyHandler {
     public void run() {
         try {
             do {
-                String header;
+                String header = null;
                 try {
                     header = readHeader();
                 } catch (ArrayIndexOutOfBoundsException ex) { // Invalid header size return 413
                     error414();
                     return;
-                } catch (SocketTimeoutException ex) {
-                    // Close socket and exit
-                    return;
+                } catch (SocketTimeoutException ignore) {
                 } catch (IOException ex) {
                     error500();
+                    return;
+                }
+
+                if (header == null) {
+                    error400();
                     return;
                 }
 
@@ -109,7 +112,6 @@ public final class HTTPHandler extends AbstractProxyHandler {
                     error502();
                     return;
                 } catch (SocketTimeoutException ignore) { // Did the server close the connection?
-                    return;
                 } catch (UnknownHostException ignore) { // Do not return anything to the client and close the connection
                     return;
                 } catch (SocketException ignore) { // Connection closed by one of the peers
@@ -399,7 +401,7 @@ public final class HTTPHandler extends AbstractProxyHandler {
             // readByte throws IOException instead of writing -1 to array so, I use this one
             temp = clientIn.read();
             if (temp == -1) {
-                throw new SocketTimeoutException("Client Disconnected");
+                throw new SocketException("Client Disconnected");
             }
             headerArr[i++] = (byte) temp;
         } while (headerArr[i - 1] != '\n' || headerArr[i - 2] != '\r'
@@ -416,7 +418,7 @@ public final class HTTPHandler extends AbstractProxyHandler {
             // readByte throws IOException instead of writing -1 to array so, I use this one
             temp = dataIn.read();
             if (temp == -1) {
-                throw new SocketTimeoutException("Client Disconnected");
+                throw new SocketException("Client Disconnected");
             }
             headerArr[i++] = (byte) temp;
         } while (headerArr[i - 1] != '\n' || headerArr[i - 2] != '\r'
