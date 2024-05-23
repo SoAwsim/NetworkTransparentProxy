@@ -77,7 +77,7 @@ public final class SSLHandler extends AbstractProxyHandler {
                     serverOut = new DataOutputStream(serverSocket.getOutputStream());
                 } else if (serverSocket.getInetAddress() != hostAddr) {
                     serverSocket.close();
-                    serverSocket = new Socket(hostAddr, 80);
+                    serverSocket = new Socket(hostAddr, 443);
                     serverSocket.setSoTimeout(SERVER_TIMEOUT);
                     serverIn = new DataInputStream(serverSocket.getInputStream());
                     serverOut = new DataOutputStream(serverSocket.getOutputStream());
