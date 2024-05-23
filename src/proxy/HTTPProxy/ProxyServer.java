@@ -1,7 +1,6 @@
 package proxy.HTTPProxy;
 
 import gui.ErrorDisplay;
-import proxy.utils.ProxyStorage;
 
 import java.io.IOException;
 import java.net.*;
@@ -26,7 +25,7 @@ public class ProxyServer implements Runnable {
             while (true) {
                 Socket conSock = ServerSock.accept();
                 try {
-                    executorThreads.execute(new ServerHandler(conSock));
+                    executorThreads.execute(new HTTPHandler(conSock));
                 }
                 catch (IOException ex) {
                     // TODO handle this better

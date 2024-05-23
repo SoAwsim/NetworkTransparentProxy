@@ -6,13 +6,13 @@ import java.io.*;
 import java.net.*;
 import java.util.*;
 
-public final class ServerHandler extends AbstractProxyHandler {
+public final class HTTPHandler extends AbstractProxyHandler {
     private boolean keepConnection = true;
     private int responseCode = -1;
     private int tempData = -2;
 
     // Throw IOException to upper level since this Runnable should not execute
-    public ServerHandler(Socket clientSocket) throws IOException {
+    public HTTPHandler(Socket clientSocket) throws IOException {
         super(clientSocket);
     }
 
