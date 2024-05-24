@@ -14,7 +14,6 @@ public final class SSLHandler extends AbstractProxyHandler {
 
     public SSLHandler (Socket clientSocket) throws IOException {
         super(clientSocket);
-        SERVER_TIMEOUT = 300;
     }
 
     @Override
@@ -43,7 +42,7 @@ public final class SSLHandler extends AbstractProxyHandler {
                         ) {
                             String header = null;
                             try {
-                                header = readHeader();
+                                header = readHeaderFromClient();
                             } catch (SocketTimeoutException ignore) {
                             }
                             if (header == null) { // This is an error from the client side exit directly
@@ -144,7 +143,7 @@ public final class SSLHandler extends AbstractProxyHandler {
         }
     }
 
-    protected String readHeader() throws IOException, ArrayIndexOutOfBoundsException {
+    protected String readHeaderFromClient() throws IOException, ArrayIndexOutOfBoundsException {
         int temp;
         do {
             // readByte throws IOException instead of writing -1 to array so, I use this one

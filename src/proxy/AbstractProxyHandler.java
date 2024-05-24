@@ -20,7 +20,7 @@ public abstract class AbstractProxyHandler implements Runnable {
     protected final ProxyStorage storage;
     protected final Logger clientLogs;
 
-    protected int SERVER_TIMEOUT = 2000;
+    protected final static int SERVER_TIMEOUT = 300;
 
     public AbstractProxyHandler(Socket clientSocket) throws IOException {
         this.clientSocket = clientSocket;
@@ -31,5 +31,5 @@ public abstract class AbstractProxyHandler implements Runnable {
         clientOut = new DataOutputStream(this.clientSocket.getOutputStream());
     }
 
-    protected abstract String readHeader() throws IOException, ArrayIndexOutOfBoundsException;
+    protected abstract String readHeaderFromClient() throws IOException, ArrayIndexOutOfBoundsException;
 }

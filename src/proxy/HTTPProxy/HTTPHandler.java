@@ -14,7 +14,6 @@ public final class HTTPHandler extends AbstractProxyHandler {
     // Throw IOException to upper level since this Runnable should not execute
     public HTTPHandler(Socket clientSocket) throws IOException {
         super(clientSocket);
-        SERVER_TIMEOUT = 300;
     }
 
     @Override
@@ -23,7 +22,7 @@ public final class HTTPHandler extends AbstractProxyHandler {
             do {
                 String header = null;
                 try {
-                    header = readHeader();
+                    header = readHeaderFromClient();
                 } catch (ArrayIndexOutOfBoundsException ex) { // Invalid header size return 413
                     error414();
                     return;
@@ -177,26 +176,15 @@ public final class HTTPHandler extends AbstractProxyHandler {
     }
 
     private void sendAllDataToClient(URL url, String cacheHeader) throws IOException {
-        String responseHeader = null;
+        String responseHeader;
         if (cacheHeader != null) {
             responseHeader = cacheHeader;
         } else {
-            for (int tryAttempt = 0; tryAttempt < 4; tryAttempt++) {
-                try {
-                    responseHeader = readHeader(serverIn);
-                    break;
-                } catch (ArrayIndexOutOfBoundsException e) {
-                    throw new BadGatewayException("Header limit exceeded by server", e);
-                } catch (SocketTimeoutException ex) { // Slow server
-                    int timeout = serverSocket.getSoTimeout(); // todo maybe check for int overflow
-                    serverSocket.setSoTimeout(timeout * 2);
-                }
+            try {
+                responseHeader = readHeaderFromServer();
+            } catch (ArrayIndexOutOfBoundsException e) {
+                throw new BadGatewayException("Header limit exceeded by server", e);
             }
-            if (responseHeader == null) {
-                // Server timeout
-                throw new SocketTimeoutException("Server timeout");
-            }
-            serverSocket.setSoTimeout(SERVER_TIMEOUT);
         }
 
         int firstSpace = responseHeader.indexOf(' ');
@@ -298,7 +286,7 @@ public final class HTTPHandler extends AbstractProxyHandler {
                 serverOut.writeBytes(request);
                 headerSent = true;
 
-                cacheResponse = readHeader(serverIn);
+                cacheResponse = readHeaderFromServer();
                 // Can use the website in the cache?
                 if (cacheResponse.substring(0, 3).equalsIgnoreCase("304")) {
                     System.out.println("Cached website found for " + url.getHost() + url.getPath());
@@ -339,7 +327,7 @@ public final class HTTPHandler extends AbstractProxyHandler {
                 serverOut.writeBytes(request);
                 headerSent = true;
                 try {
-                    cacheResponse = readHeader(serverIn);
+                    cacheResponse = readHeaderFromServer();
                 } catch (SocketTimeoutException ex) { // Slow server
 
                 }
@@ -385,7 +373,7 @@ public final class HTTPHandler extends AbstractProxyHandler {
         System.out.println("Sent POST to Web Server:");
         System.out.println(header);
 
-        String responseHeader = readHeader(serverIn);
+        String responseHeader = readHeaderFromServer();
         int firstSpace = responseHeader.indexOf(' ');
         try {
             responseCode = Integer.parseInt(responseHeader.substring(firstSpace + 1, firstSpace + 4));
@@ -401,7 +389,7 @@ public final class HTTPHandler extends AbstractProxyHandler {
         System.out.println("Sent OPTIONS request to server");
         System.out.println(header);
 
-        String responseHeader = readHeader(serverIn);
+        String responseHeader = readHeaderFromServer();
         int firstSpace = responseHeader.indexOf(' ');
         try {
             responseCode = Integer.parseInt(responseHeader.substring(firstSpace + 1, firstSpace + 4));
@@ -412,7 +400,7 @@ public final class HTTPHandler extends AbstractProxyHandler {
         sendAllDataToClient();
     }
 
-    protected String readHeader() throws IOException, ArrayIndexOutOfBoundsException {
+    protected String readHeaderFromClient() throws IOException, ArrayIndexOutOfBoundsException {
         // Apache header limit is 8KB, so I also use this limit as well
         byte[] headerArr = new byte[8192];
         int temp;
@@ -421,32 +409,66 @@ public final class HTTPHandler extends AbstractProxyHandler {
             headerArr[i++] = (byte) tempData;
             tempData = -2;
         }
-        do {
-            // readByte throws IOException instead of writing -1 to array so, I use this one
-            temp = clientIn.read();
-            if (temp == -1) {
-                throw new SocketException("Client Disconnected");
+
+        int tryAttempt;
+        for (tryAttempt = 0; tryAttempt < 4; tryAttempt++) {
+            try {
+                do {
+                    // readByte throws IOException instead of writing -1 to array so, I use this one
+                    temp = clientIn.read();
+                    if (temp == -1) {
+                        throw new SocketException("Client Disconnected");
+                    }
+                    headerArr[i++] = (byte) temp;
+                } while (headerArr[i - 1] != '\n' || headerArr[i - 2] != '\r'
+                        || headerArr[i - 3] != '\n' || headerArr[i - 4] != '\r');
+                clientSocket.setSoTimeout(SERVER_TIMEOUT);
+                break;
+            } catch (SocketTimeoutException ex) {
+                // Slow client
+                int timeout = clientSocket.getSoTimeout();
+                clientSocket.setSoTimeout(timeout * 3);
             }
-            headerArr[i++] = (byte) temp;
-        } while (headerArr[i - 1] != '\n' || headerArr[i - 2] != '\r'
-                || headerArr[i - 3] != '\n' || headerArr[i - 4] != '\r');
+        }
+
+        if (tryAttempt >= 4) {
+            // Very slow client timeout the connection
+            throw new SocketException("Client timeout");
+        }
 
         return new String(headerArr, 0, i);
     }
 
-    private String readHeader(DataInputStream dataIn) throws IOException, ArrayIndexOutOfBoundsException{
+    private String readHeaderFromServer() throws IOException, ArrayIndexOutOfBoundsException{
         byte[] headerArr = new byte[8192];
         int i = 0;
         int temp;
-        do {
-            // readByte throws IOException instead of writing -1 to array so, I use this one
-            temp = dataIn.read();
-            if (temp == -1) {
-                throw new SocketException("Client Disconnected");
+
+        int tryAttempt;
+        for (tryAttempt = 0; tryAttempt < 4; tryAttempt++) {
+            try {
+                do {
+                    // readByte throws IOException instead of writing -1 to array so, I use this one
+                    temp = serverIn.read();
+                    if (temp == -1) {
+                        throw new SocketException("Client Disconnected");
+                    }
+                    headerArr[i++] = (byte) temp;
+                } while (headerArr[i - 1] != '\n' || headerArr[i - 2] != '\r'
+                        || headerArr[i - 3] != '\n' || headerArr[i - 4] != '\r');
+                serverSocket.setSoTimeout(SERVER_TIMEOUT);
+                break;
+            } catch (SocketTimeoutException e) {
+                // Slow server
+                int timeout = serverSocket.getSoTimeout();
+                serverSocket.setSoTimeout(timeout * 3);
             }
-            headerArr[i++] = (byte) temp;
-        } while (headerArr[i - 1] != '\n' || headerArr[i - 2] != '\r'
-                || headerArr[i - 3] != '\n' || headerArr[i - 4] != '\r');
+        }
+
+        if (tryAttempt >= 4) {
+            // Very slow server timeout the connection
+            throw new SocketException("Server timeout");
+        }
 
         return new String(headerArr, 0, i);
     }
