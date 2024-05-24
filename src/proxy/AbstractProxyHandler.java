@@ -9,7 +9,7 @@ import java.io.IOException;
 import java.net.Socket;
 
 public abstract class AbstractProxyHandler implements Runnable {
-    protected final Socket clientSock;
+    protected final Socket clientSocket;
     protected final DataInputStream clientIn;
     protected final DataOutputStream clientOut;
 
@@ -23,12 +23,12 @@ public abstract class AbstractProxyHandler implements Runnable {
     protected int SERVER_TIMEOUT = 2000;
 
     public AbstractProxyHandler(Socket clientSocket) throws IOException {
-        clientSock = clientSocket;
+        this.clientSocket = clientSocket;
         clientLogs = Logger.getLogger();
         storage = ProxyStorage.getStorage();
-        clientSock.setSoTimeout(SERVER_TIMEOUT);
-        clientIn = new DataInputStream(clientSock.getInputStream());
-        clientOut = new DataOutputStream(clientSock.getOutputStream());
+        this.clientSocket.setSoTimeout(SERVER_TIMEOUT);
+        clientIn = new DataInputStream(this.clientSocket.getInputStream());
+        clientOut = new DataOutputStream(this.clientSocket.getOutputStream());
     }
 
     protected abstract String readHeader() throws IOException, ArrayIndexOutOfBoundsException;

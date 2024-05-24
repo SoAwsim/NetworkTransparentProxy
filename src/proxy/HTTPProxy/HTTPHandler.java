@@ -14,6 +14,7 @@ public final class HTTPHandler extends AbstractProxyHandler {
     // Throw IOException to upper level since this Runnable should not execute
     public HTTPHandler(Socket clientSocket) throws IOException {
         super(clientSocket);
+        SERVER_TIMEOUT = 300;
     }
 
     @Override
@@ -92,16 +93,16 @@ public final class HTTPHandler extends AbstractProxyHandler {
 
                     if (method.equalsIgnoreCase("get")) {
                         handleGet(header, url);
-                        clientLogs.addLog(clientSock.getInetAddress(), url, "GET", Integer.toString(responseCode));
+                        clientLogs.addLog(clientSocket.getInetAddress(), url, "GET", Integer.toString(responseCode));
                     } else if (method.equalsIgnoreCase("post")) {
                         handlePost(header);
-                        clientLogs.addLog(clientSock.getInetAddress(), url, "POST", Integer.toString(responseCode));
+                        clientLogs.addLog(clientSocket.getInetAddress(), url, "POST", Integer.toString(responseCode));
                     } else if (method.equalsIgnoreCase("head")) {
                         handleHead(header, url);
-                        clientLogs.addLog(clientSock.getInetAddress(), url, "HEAD", Integer.toString(responseCode));
+                        clientLogs.addLog(clientSocket.getInetAddress(), url, "HEAD", Integer.toString(responseCode));
                     } else if (method.equalsIgnoreCase("options")) {
                         handleOptions(header);
-                        clientLogs.addLog(clientSock.getInetAddress(), url, "OPTIONS", Integer.toString(responseCode));
+                        clientLogs.addLog(clientSocket.getInetAddress(), url, "OPTIONS", Integer.toString(responseCode));
                     } else {
                         error405();
                         return;
@@ -125,7 +126,7 @@ public final class HTTPHandler extends AbstractProxyHandler {
             try {
                 clientIn.close();
                 clientOut.close();
-                clientSock.close();
+                clientSocket.close();
 
                 if (serverSocket != null) {
                     serverIn.close();
@@ -166,11 +167,11 @@ public final class HTTPHandler extends AbstractProxyHandler {
                     break;
                 }
                 // Allow for longer wait for next connection
-                clientSock.setSoTimeout(SERVER_TIMEOUT * 2);
+                clientSocket.setSoTimeout(SERVER_TIMEOUT * 2);
                 serverSocket.setSoTimeout(SERVER_TIMEOUT * 2);
             }
         }
-        clientSock.setSoTimeout(SERVER_TIMEOUT);
+        clientSocket.setSoTimeout(SERVER_TIMEOUT);
         serverSocket.setSoTimeout(SERVER_TIMEOUT);
     }
 
@@ -254,11 +255,11 @@ public final class HTTPHandler extends AbstractProxyHandler {
                     break;
                 }
                 // Allow for longer wait for next connection
-                clientSock.setSoTimeout(SERVER_TIMEOUT * 2);
+                clientSocket.setSoTimeout(SERVER_TIMEOUT * 2);
                 serverSocket.setSoTimeout(SERVER_TIMEOUT * 2);
             }
         }
-        clientSock.setSoTimeout(SERVER_TIMEOUT);
+        clientSocket.setSoTimeout(SERVER_TIMEOUT);
         serverSocket.setSoTimeout(SERVER_TIMEOUT);
     }
 
@@ -323,7 +324,13 @@ public final class HTTPHandler extends AbstractProxyHandler {
                 System.out.println(request + "\n");
                 serverOut.writeBytes(request);
                 headerSent = true;
-                cacheResponse = readHeader(serverIn);
+                try {
+                    cacheResponse = readHeader(serverIn);
+                } catch (SocketTimeoutException ignore) {
+                }
+                if (cacheResponse == null) {
+                    throw new IOException("Reading response from the server failed!");
+                }
                 // Can use the website in the cache?
                 int firstStatus = cacheResponse.indexOf(" ") + 1;
                 if (cacheResponse.substring(firstStatus, firstStatus + 3).equalsIgnoreCase("304")) {
@@ -348,15 +355,17 @@ public final class HTTPHandler extends AbstractProxyHandler {
     }
 
     private void handlePost(String header) throws IOException {
-        // TODO maybe use threads here
         serverOut.writeBytes(header);
-        clientSock.setSoTimeout(100);
+        clientSocket.setSoTimeout(300);
         try {
-            clientIn.transferTo(serverOut);
+            long readBytes = clientIn.transferTo(serverOut);
+            if (readBytes == -1) {
+                keepConnection = false;
+            }
         } catch (SocketTimeoutException ignore) {
             // Ignore since all data transfer should have finished
         }
-        clientSock.setSoTimeout(SERVER_TIMEOUT);
+        clientSocket.setSoTimeout(SERVER_TIMEOUT);
 
         System.out.println("Sent POST to Web Server:");
         System.out.println(header);

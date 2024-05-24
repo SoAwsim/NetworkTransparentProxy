@@ -123,7 +123,7 @@ public final class SSLHandler extends AbstractProxyHandler {
                     }
                 } catch (SocketTimeoutException ignore) {
                 }
-                clientLogs.addLog(clientSock.getInetAddress(), hostAddr.getHostName());
+                clientLogs.addLog(clientSocket.getInetAddress(), hostAddr.getHostName());
             } while (keepConnection);
         } catch (SocketTimeoutException ignore) {
             // Close the connection
@@ -134,7 +134,7 @@ public final class SSLHandler extends AbstractProxyHandler {
         } finally {
             System.out.println("Closing HTTPS connection");
             try {
-                clientSock.close();
+                clientSocket.close();
                 if (serverSocket != null) {
                     serverSocket.close();
                 }
