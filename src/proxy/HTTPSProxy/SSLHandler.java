@@ -21,6 +21,11 @@ public final class SSLHandler extends AbstractProxyHandler {
         InetAddress hostAddr = null;
         boolean connectReq = false;
         try {
+            performAuthentication();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        try {
             do {
                 // Reset buffer
                 bufferIndex = 0;
