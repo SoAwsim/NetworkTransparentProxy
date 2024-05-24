@@ -18,7 +18,6 @@ public class ProxyStorage {
     private final File blockedIndex;
     private ConcurrentHashMap<String, String> cacheMap;
     private ConcurrentHashMap<String, String> blockedMap;
-    private final ConcurrentHashMap<InetAddress, Object> allowedClients;
 
     public static ProxyStorage getStorage() throws IOException {
         ProxyStorage obj = obj_instance;
@@ -36,7 +35,6 @@ public class ProxyStorage {
     }
 
     private ProxyStorage() throws IOException {
-        allowedClients = new ConcurrentHashMap<>();
         String homeDir = System.getProperty("user.home");
         File configDir = new File(homeDir + File.separator + ".proxy");
         // Does the config dir exists?
@@ -164,14 +162,5 @@ public class ProxyStorage {
         synchronized (writeLock) {
             writeLock.remove(fileName);
         }
-    }
-
-    public void allowClient(InetAddress clientIP) {
-        allowedClients.putIfAbsent(clientIP, new Object());
-    }
-
-    public boolean checkIfClientAllowed(InetAddress clientIP) {
-        Object result = allowedClients.get(clientIP);
-        return result != null;
     }
 }

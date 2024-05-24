@@ -19,11 +19,6 @@ public final class HTTPHandler extends AbstractProxyHandler {
     @Override
     public void run() {
         try {
-            performAuthentication();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-        try {
             do {
                 String header = null;
                 try {

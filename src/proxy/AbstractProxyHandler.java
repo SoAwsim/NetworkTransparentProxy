@@ -6,9 +6,7 @@ import proxy.utils.ProxyStorage;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.net.InetAddress;
 import java.net.Socket;
-import java.util.Date;
 
 public abstract class AbstractProxyHandler implements Runnable {
     // Variables to store the client connection and its IO
@@ -49,29 +47,4 @@ public abstract class AbstractProxyHandler implements Runnable {
      *
      */
     protected abstract String readHeaderFromClient() throws IOException, ArrayIndexOutOfBoundsException;
-
-    protected void performAuthentication() throws IOException {
-        InetAddress clientIP = clientSocket.getInetAddress();
-        // Client not authenticated
-        if (storage.checkIfClientAllowed(clientIP)) {
-            return;
-        }
-        String html = "<html><body>\n\r" +
-                "<html>\n\r" +
-                "<body>\n\r" +
-                "<form action=\"http://192.168.123.11\" method=\"GET\">\n\r" +
-                "   <label for=\"token\">Token:</label><br>\n\r" +
-                "   <input type=\"text\" id=\"token\" name=\"token\" value=\"\"><br><br>\n\r" +
-                "   <input type=\"submit\" value=\"Submit\">\n\r" +
-                "</form>\n\r" +
-                "</body>\n\r" +
-                "</html>\n\r";
-        String response = "HTTP/1.1 401 Unauthorized\r\n"
-                + "Date: " + new Date() + "\r\n"
-                + "Server: CSE471 Captive Portal\r\n"
-                + "Content-Length: " + html.length() + "\r\n"
-                + "Host: 192.168.123.11\r\n"
-                + "Content-Type: text/html; charset=UTF-8\r\n\r\n" + html;
-        clientOut.writeBytes(response);
-    }
 }
