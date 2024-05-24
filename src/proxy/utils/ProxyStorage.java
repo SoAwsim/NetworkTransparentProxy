@@ -89,7 +89,11 @@ public class ProxyStorage {
     }
 
     public boolean isBlocked(InetAddress ip) {
-        return blockedMap.get(ip.getHostName()) != null;
+        String hostname = ip.getHostName();
+        if (hostname.startsWith("www.")) {
+            hostname = hostname.substring(4);
+        }
+        return blockedMap.get(hostname) != null;
     }
 
     public void blockAddress(String address) throws IOException {
