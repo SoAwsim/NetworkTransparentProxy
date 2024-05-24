@@ -143,6 +143,7 @@ public final class SSLHandler extends AbstractProxyHandler {
         }
     }
 
+    @Override
     protected String readHeaderFromClient() throws IOException, ArrayIndexOutOfBoundsException {
         int temp;
         do {

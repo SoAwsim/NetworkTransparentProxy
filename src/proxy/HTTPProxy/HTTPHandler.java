@@ -402,6 +402,7 @@ public final class HTTPHandler extends AbstractProxyHandler {
         sendAllDataToClient();
     }
 
+    @Override
     protected String readHeaderFromClient() throws IOException, ArrayIndexOutOfBoundsException {
         // Apache header limit is 8KB, so I also use this limit as well
         byte[] headerArr = new byte[8192];
