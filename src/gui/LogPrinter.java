@@ -16,7 +16,7 @@ public class LogPrinter extends SwingWorker<Object, String> {
                 System.out.println(currentLog);
             }
             synchronized (logger.broadcaster) {
-                wait();
+                logger.broadcaster.wait();
             }
         }
         return null;

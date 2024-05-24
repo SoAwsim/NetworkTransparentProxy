@@ -47,7 +47,7 @@ public class Logger {
         clientQueue.add(log);
         logQueue.add(log);
         synchronized (broadcaster) {
-            notifyAll();
+            broadcaster.notifyAll();
         }
     }
 
@@ -61,7 +61,7 @@ public class Logger {
         clientQueue.add(log);
         logQueue.add(log);
         synchronized (broadcaster) {
-            notifyAll();
+            broadcaster.notifyAll();
         }
     }
 
@@ -70,7 +70,7 @@ public class Logger {
         String log = dateFormat.format(currentDate) + ", " + message;
         logQueue.add(log);
         synchronized (broadcaster) {
-            notifyAll();
+            broadcaster.notifyAll();
         }
     }
 
