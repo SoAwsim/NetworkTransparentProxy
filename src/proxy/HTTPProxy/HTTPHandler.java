@@ -4,7 +4,7 @@ import proxy.AbstractProxyHandler;
 
 import java.io.*;
 import java.net.*;
-import java.util.*;
+import java.util.Date;
 
 public final class HTTPHandler extends AbstractProxyHandler {
     private boolean keepConnection = true;
