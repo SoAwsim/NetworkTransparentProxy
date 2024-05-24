@@ -20,7 +20,6 @@ public final class SSLHandler extends AbstractProxyHandler {
     public void run() {
         InetAddress hostAddr = null;
         boolean connectReq = false;
-        boolean keepConnection = true;
         try {
             do {
                 // Reset buffer
@@ -65,11 +64,11 @@ public final class SSLHandler extends AbstractProxyHandler {
                         }
                     } catch (UnknownHostException ignore) {
                         // Ignore for now
-                    } catch (ArrayIndexOutOfBoundsException e) { // Buffer overflow exit directly
+                    } catch (ArrayIndexOutOfBoundsException e) {
+                        // Buffer overflow exit directly
                         return;
                     }
-                }
-                else {
+                } else {
                     // Reset this flag since client may want to initiate another connection using the same port
                     connectReq = false;
                 }
@@ -79,12 +78,14 @@ public final class SSLHandler extends AbstractProxyHandler {
                     return;
                 }
 
+                // Connect to the server
                 if (serverSocket == null) {
                     serverSocket = new Socket(hostAddr, 443);
                     serverSocket.setSoTimeout(SERVER_TIMEOUT);
                     serverIn = new DataInputStream(serverSocket.getInputStream());
                     serverOut = new DataOutputStream(serverSocket.getOutputStream());
                 } else if (serverSocket.getInetAddress() != hostAddr) {
+                    // If new connection from the server port has been requested initiate a new server connection
                     serverSocket.close();
                     serverSocket = new Socket(hostAddr, 443);
                     serverSocket.setSoTimeout(SERVER_TIMEOUT);
@@ -100,16 +101,14 @@ public final class SSLHandler extends AbstractProxyHandler {
 
                 // Transfer buffered data to the server
                 if (bufferIndex != 0) {
-                    try {
-                        serverOut.write(sharedBuffer, 0, bufferIndex);
-                    } catch (SocketTimeoutException ignore) {
-                    }
+                    serverOut.write(sharedBuffer, 0, bufferIndex);
                 }
 
                 try {
                     long bytesRead = clientIn.transferTo(serverOut);
-                    if (bytesRead == -1) { // Connection closed by the client maybe some reaming data to left that needs to be transferred to the server
-                        keepConnection = false;
+                    if (bytesRead == -1) {
+                        // Connection closed by client
+                        return;
                     }
                 } catch (SocketTimeoutException ignore) {
                 }
@@ -117,13 +116,14 @@ public final class SSLHandler extends AbstractProxyHandler {
                 // Transfer the response back to the client
                 try {
                     long bytesRead = serverIn.transferTo(clientOut);
-                    if (bytesRead == -1) { // Connection closed by server
-                        keepConnection = false;
+                    if (bytesRead == -1) {
+                        // Connection closed by server
+                        return;
                     }
                 } catch (SocketTimeoutException ignore) {
                 }
                 clientLogs.addLog(clientSocket.getInetAddress(), hostAddr.getHostName());
-            } while (keepConnection);
+            } while (true);
         } catch (SocketTimeoutException ignore) {
             // Close the connection
         } catch (SocketException ignore) {
