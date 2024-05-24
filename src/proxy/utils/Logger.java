@@ -15,7 +15,7 @@ public class Logger {
 
     private final ConcurrentHashMap<String, ConcurrentLinkedQueue<String>> clientReports = new ConcurrentHashMap<>();
 
-    private final Object broadcaster = new Object();
+    public final Object broadcaster = new Object();
     private final ConcurrentLinkedQueue<String> logQueue = new ConcurrentLinkedQueue<>();
 
     public static Logger getLogger() {
@@ -45,6 +45,10 @@ public class Logger {
         String log = dateFormat.format(currentDate) + ", IP: " + clientIP.getHostAddress() + ", Domain: " + domain.getHost() +
                 ", Resource path: " + domain.getPath() + ", Method: " + method + ", Response: " + responseCode;
         clientQueue.add(log);
+        logQueue.add(log);
+        synchronized (broadcaster) {
+            notifyAll();
+        }
     }
 
     public void addLog(InetAddress clientIP, String host) {
@@ -56,14 +60,18 @@ public class Logger {
         String log = dateFormat.format(currentDate) + ", IP: " + clientIP.getHostAddress() + ", Domain: " + host + ", Connection: HTTPS";
         clientQueue.add(log);
         logQueue.add(log);
-        logQueue.notifyAll();
+        synchronized (broadcaster) {
+            notifyAll();
+        }
     }
 
     public void addVerboseLog(String message) {
         Date currentDate = new Date();
         String log = dateFormat.format(currentDate) + ", " + message;
         logQueue.add(log);
-        logQueue.notifyAll();
+        synchronized (broadcaster) {
+            notifyAll();
+        }
     }
 
     public ConcurrentLinkedQueue<String> getLogQueue() {
