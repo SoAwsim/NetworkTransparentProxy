@@ -27,6 +27,8 @@ public final class HTTPHandler extends AbstractProxyHandler {
                     error414();
                     return;
                 } catch (SocketTimeoutException ignore) {
+                } catch (SocketException ex) { // Connection closed by peer
+                    return;
                 } catch (IOException ex) {
                     error500();
                     return;
