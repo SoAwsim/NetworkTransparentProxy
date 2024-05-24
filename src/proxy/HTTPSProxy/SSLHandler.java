@@ -131,14 +131,14 @@ public final class SSLHandler extends AbstractProxyHandler {
         } catch (IOException e) {
             throw new RuntimeException(e);
         } finally {
-            System.out.println("Closing HTTPS connection");
+            clientLogs.addVerboseLog("Closing HTTPS connection");
             try {
                 clientSocket.close();
                 if (serverSocket != null) {
                     serverSocket.close();
                 }
             } catch (IOException e) {
-                System.out.println("Error while closing HTTPS socket");
+                clientLogs.addVerboseLog("Error while closing the HTTPS connection");
             }
         }
     }
@@ -224,7 +224,7 @@ public final class SSLHandler extends AbstractProxyHandler {
         currentLength = ((sharedBuffer[bufferIndex - 2] & 0xff) << 8) | (sharedBuffer[bufferIndex - 1] & 0xff);
         bufferIndex += clientIn.read(sharedBuffer, bufferIndex, currentLength);
         String hostname = new String(sharedBuffer, bufferIndex-currentLength, currentLength);
-        System.out.println(hostname);
+        clientLogs.addVerboseLog(hostname);
         return hostname;
     }
 }

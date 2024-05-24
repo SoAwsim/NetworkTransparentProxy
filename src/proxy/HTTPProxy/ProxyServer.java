@@ -23,17 +23,15 @@ public class ProxyServer extends AbstractProxyListener {
                     executorThreads.execute(new HTTPHandler(clientConnection));
                 }
                 catch (IOException ex) {
-                    // TODO handle this better
-                    System.out.println("Client connection failed");
+                    logger.addVerboseLog("Client failed to connect to the HTTP proxy!");
                 }
             }
         }
         catch (SocketException se) {
-            System.out.println("Socket closed shutting down server");
+            logger.addVerboseLog("HTTP Proxy shutting down");
         }
         catch (IOException e) {
-            // TODO Handle this better
-            System.out.println("IO exception in HTTP proxy");
+            logger.addVerboseLog("IOException in HTTP proxy exiting...");
         }
         finally {
             // Oracle recommended way of shutting down the executor service
@@ -48,7 +46,7 @@ public class ProxyServer extends AbstractProxyListener {
                 executorThreads.shutdownNow();
             }
             finally {
-                System.out.println("All threads stopped executing");
+                logger.addVerboseLog("HTTP Proxy stopped executing");
             }
         }
     }

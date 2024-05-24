@@ -24,16 +24,15 @@ public class SSLProxy extends AbstractProxyListener {
                     executorThreads.execute(new SSLHandler(clientConnection));
                 }
                 catch (IOException ex) {
-                    // TODO handle this better
-                    System.out.println("Client connection failed");
+                    logger.addVerboseLog("Client HTTPS connection failed");
                 }
             }
         }
         catch (SocketException se) {
-            System.out.println("Socket closed shutting down server");
+            logger.addVerboseLog("HTTPS connection closed");
         }
         catch (IOException e) {
-            System.out.println("IO error in HTTPs server");
+            logger.addVerboseLog("IOError in HTTPS connection");
         }
         finally {
             executorThreads.shutdown(); // Stop accepting new jobs
@@ -47,7 +46,7 @@ public class SSLProxy extends AbstractProxyListener {
                 executorThreads.shutdownNow();
             }
             finally {
-                System.out.println("All threads stopped executing");
+                logger.addVerboseLog("HTTPS proxy stopped!");
             }
         }
     }

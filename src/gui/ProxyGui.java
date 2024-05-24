@@ -23,7 +23,7 @@ public class ProxyGui implements ErrorDisplay {
     private Thread serverSSLThread;
     private ProxyServer httpProxy;
     private SSLProxy httpsProxy;
-    private ProxyStorage storage;
+    private final ProxyStorage storage;
     private final Logger clientLogs;
 
     private final DefaultTableModel blockedTableModel;
@@ -32,8 +32,8 @@ public class ProxyGui implements ErrorDisplay {
         try {
             storage = ProxyStorage.getStorage();
         } catch (IOException e) {
-            System.out.println("IO error occurred while getting saved data");
-            storage = null;
+            // Critical error cannot recover from this
+            throw new RuntimeException(e);
         }
 
         clientLogs = Logger.getLogger();
@@ -80,7 +80,7 @@ public class ProxyGui implements ErrorDisplay {
                 try {
                     addrArray[index] = InetAddress.getByName(blockedTable.getModel().getValueAt(row, 0).toString().trim());
                 } catch (UnknownHostException ex) {
-                    System.out.println("Unknown host at row " + row + "!");
+                    clientLogs.addVerboseLog("Unknown host log at row " + row);
                     continue;
                 }
                 index++;
@@ -88,8 +88,7 @@ public class ProxyGui implements ErrorDisplay {
             try {
                 storage.unblockHosts(addrArray);
             } catch (IOException ex) {
-                // todo handle this better
-                System.out.println("Unlocking failed!");
+                clientLogs.addVerboseLog("Unblocking the selected hosts failed!");
             }
             refreshBlockedList();
         });
@@ -118,7 +117,7 @@ public class ProxyGui implements ErrorDisplay {
                 try {
                     httpsProxy = new SSLProxy(443);
                 } catch (IOException ex) {
-                    System.out.println("Failed to create HTTPS proxy");
+                    clientLogs.addVerboseLog("Failed to create HTTPS proxy");
                 }
                 serverThread = new Thread(httpProxy);
                 serverSSLThread = new Thread(httpsProxy);
@@ -290,6 +289,8 @@ public class ProxyGui implements ErrorDisplay {
         panel.add(proxyStatus);
         mainWindow.add(panel);
         mainWindow.setVisible(true);
+        var logWorker = new LogPrinter();
+        logWorker.execute();
     }
 
     private void refreshBlockedList() {

@@ -1,5 +1,7 @@
 package proxy;
 
+import proxy.utils.Logger;
+
 import java.io.IOException;
 import java.net.ServerSocket;
 
@@ -7,6 +9,7 @@ public abstract class AbstractProxyListener implements Runnable {
     protected ServerSocket serverListener;
     protected final int listenPort;
     protected boolean serverOn = false;
+    protected Logger logger = Logger.getLogger();
 
     protected static final int SERVER_THREADS = 150;
 

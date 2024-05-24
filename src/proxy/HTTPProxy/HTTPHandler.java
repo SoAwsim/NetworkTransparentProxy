@@ -125,7 +125,7 @@ public final class HTTPHandler extends AbstractProxyHandler {
                 }
             } while (keepConnection);
         } finally {
-            System.out.println("Closing connection from server side");
+            clientLogs.addVerboseLog("Closing HTTP connection");
             try {
                 clientIn.close();
                 clientOut.close();
@@ -156,7 +156,7 @@ public final class HTTPHandler extends AbstractProxyHandler {
                 tempData = clientIn.read();
                 // Did the client close the connection?
                 if (tempData == -1) {
-                    System.out.println("Client closed connection");
+                    clientLogs.addVerboseLog("HTTP Connection closed by the client");
                     keepConnection = false;
                     return;
                 }
@@ -192,7 +192,7 @@ public final class HTTPHandler extends AbstractProxyHandler {
         }
         int secondLine = responseHeader.indexOf('\r') + 2;
         String cacheDate = canCache(new MimeHeader(responseHeader.substring(secondLine)));
-        System.out.println("Data cache: " + cacheDate);
+        clientLogs.addVerboseLog("Can cache: " + cacheDate);
 
         FileOutputStream cacheFile = null;
         if (cacheDate != null) {
@@ -237,7 +237,7 @@ public final class HTTPHandler extends AbstractProxyHandler {
                 tempData = clientIn.read();
                 // Did the client close the connection?
                 if (tempData == -1) {
-                    System.out.println("Client closed connection");
+                    clientLogs.addVerboseLog("HTTP Connection closed by the client");
                     keepConnection = false;
                     return;
                 }
@@ -271,20 +271,20 @@ public final class HTTPHandler extends AbstractProxyHandler {
                 String cacheDate = (String) cacheResult[1];
                 mh.put("If-Modified-Since", cacheDate);
                 String request = header.substring(0, secondLine) + mh;
-                System.out.println("Asking if the cache is valid");
+                clientLogs.addVerboseLog("Checking if the cache is valid");
                 serverOut.writeBytes(request);
                 headerSent = true;
 
                 cacheResponse = readHeaderFromServer();
                 // Can use the website in the cache?
                 if (cacheResponse.substring(0, 3).equalsIgnoreCase("304")) {
-                    System.out.println("Cached website found for " + url.getHost() + url.getPath());
+                    clientLogs.addVerboseLog("Cached website found for " + url.getHost() + url.getPath());
                     FileInputStream cache = (FileInputStream) cacheResult[0];
                     cache.transferTo(clientOut);
                     cache.close();
                     return;
                 } else {
-                    System.out.println("Cache requires update!");
+                    clientLogs.addVerboseLog("Cache requires update!");
                 }
             }
         }
@@ -293,8 +293,7 @@ public final class HTTPHandler extends AbstractProxyHandler {
             serverOut.writeBytes(header);
         }
 
-        System.out.println("Sent HEAD request to server");
-        System.out.println(header);
+        clientLogs.addVerboseLog("Sent HEAD request to server");
         sendAllDataToClient(url, cacheResponse);
     }
 
@@ -311,8 +310,7 @@ public final class HTTPHandler extends AbstractProxyHandler {
                 String cacheDate = (String) cacheResult[1];
                 mh.put("If-Modified-Since", cacheDate);
                 String request = header.substring(0, secondLine) + mh;
-                System.out.println("Asking if the cache is valid");
-                System.out.println(request + "\n");
+                clientLogs.addVerboseLog("Asking if the cache is valid");
                 serverOut.writeBytes(request);
                 headerSent = true;
                 try {
@@ -326,13 +324,13 @@ public final class HTTPHandler extends AbstractProxyHandler {
                 // Can use the website in the cache?
                 int firstStatus = cacheResponse.indexOf(" ") + 1;
                 if (cacheResponse.substring(firstStatus, firstStatus + 3).equalsIgnoreCase("304")) {
-                    System.out.println("Cached website found for " + url.getHost() + url.getPath());
+                    clientLogs.addVerboseLog("Cached website found for " + url.getHost() + url.getPath());
                     FileInputStream cache = (FileInputStream) cacheResult[0];
                     cache.transferTo(clientOut);
                     cache.close();
                     return;
                 } else {
-                    System.out.println("Cache requires update!");
+                    clientLogs.addVerboseLog("Cache requires update!");
                 }
             }
         }
@@ -341,8 +339,7 @@ public final class HTTPHandler extends AbstractProxyHandler {
             serverOut.writeBytes(header);
         }
 
-        System.out.println("Sent GET to Web Server:");
-        System.out.println(header);
+        clientLogs.addVerboseLog("Sent GET to Web Server:");
         sendAllDataToClient(url, cacheResponse);
     }
 
@@ -359,8 +356,7 @@ public final class HTTPHandler extends AbstractProxyHandler {
         }
         clientSocket.setSoTimeout(SERVER_TIMEOUT);
 
-        System.out.println("Sent POST to Web Server:");
-        System.out.println(header);
+        clientLogs.addVerboseLog("Sent POST to Web Server:");
 
         String responseHeader = readHeaderFromServer();
         int firstSpace = responseHeader.indexOf(' ');
@@ -375,8 +371,7 @@ public final class HTTPHandler extends AbstractProxyHandler {
 
     private void handleOptions(String header) throws IOException {
         serverOut.writeBytes(header);
-        System.out.println("Sent OPTIONS request to server");
-        System.out.println(header);
+        clientLogs.addVerboseLog("Sent OPTIONS request to server");
 
         String responseHeader = readHeaderFromServer();
         int firstSpace = responseHeader.indexOf(' ');
