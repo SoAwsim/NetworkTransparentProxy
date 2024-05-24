@@ -23,7 +23,7 @@ public final class HTTPHandler extends AbstractProxyHandler {
                 String header = null;
                 try {
                     header = readHeaderFromClient();
-                } catch (ArrayIndexOutOfBoundsException ex) { // Invalid header size return 413
+                } catch (ArrayIndexOutOfBoundsException ex) { // Invalid header size return 414
                     error414();
                     return;
                 } catch (SocketTimeoutException ignore) {
@@ -68,7 +68,7 @@ public final class HTTPHandler extends AbstractProxyHandler {
                 try {
                     serverIP = InetAddress.getByName(url.getHost());
                 } catch (UnknownHostException e) {
-                    error400();
+                    // Drop the connection host not found
                     return;
                 }
 
@@ -79,12 +79,14 @@ public final class HTTPHandler extends AbstractProxyHandler {
                 }
 
                 try {
+                    // Connect to the server
                     if (serverSocket == null) {
                         serverSocket = new Socket(serverIP, 80);
                         serverSocket.setSoTimeout(SERVER_TIMEOUT);
                         serverIn = new DataInputStream(serverSocket.getInputStream());
                         serverOut = new DataOutputStream(serverSocket.getOutputStream());
                     } else if (serverSocket.getInetAddress() != serverIP) {
+                        // Client using the same port to connect other hosts
                         serverSocket.close();
                         serverSocket = new Socket(serverIP, 80);
                         serverSocket.setSoTimeout(SERVER_TIMEOUT);
@@ -105,20 +107,20 @@ public final class HTTPHandler extends AbstractProxyHandler {
                         handleOptions(header);
                         clientLogs.addLog(clientSocket.getInetAddress(), url, "OPTIONS", Integer.toString(responseCode));
                     } else {
+                        // Other methods are not allowed as in the project requirements
                         error405();
                         return;
                     }
-                } catch (BadRequestException ex) {
-                    error400();
                 } catch (BadGatewayException ex) {
                     error502();
                     return;
-                } catch (SocketTimeoutException ignore) { // Did the server close the connection?
-                } catch (UnknownHostException ignore) { // Do not return anything to the client and close the connection
-                    return;
-                } catch (SocketException ignore) { // Connection closed by one of the peers
+                } catch (SocketTimeoutException ignore) {
+                    // Continue with the persistent connection until one of the peers disconnect
+                } catch (SocketException exs) {
+                    // Connection closed by one of the peers safe to exit
                     return;
                 } catch (IOException ex) {
+                    // This should never reach here rethrow as runtime exception and crash the thread
                     throw new RuntimeException(ex);
                 }
             } while (keepConnection);
@@ -135,18 +137,18 @@ public final class HTTPHandler extends AbstractProxyHandler {
                     serverSocket.close();
                 }
             } catch (IOException ignore) {
+                // IOException does not matter at this point
             }
         }
     }
 
     // Overloaded function, this one does not do caching suitable for post, options
     private void sendAllDataToClient() throws IOException {
-        boolean serverRead = false;
-        while (true) {
+        for (int tryAttempt = 0; tryAttempt < 4; tryAttempt++) {
             try {
                 serverIn.transferTo(clientOut);
-            } catch (SocketTimeoutException ex) {
-                // no data sent in SERVER_TIMEOUT ms
+            } catch (SocketTimeoutException ignore) {
+                // Ignore for now
             }
 
             try {
@@ -161,16 +163,9 @@ public final class HTTPHandler extends AbstractProxyHandler {
                 // Client has a reply continue with the persistent connection
                 break;
             } catch (SocketTimeoutException ex) {
-                // If this is the first timeout allow more time to the server
-                // If second time assume connection was lost or timeout
-                if (!serverRead) {
-                    serverRead = true;
-                } else {
-                    break;
-                }
                 // Allow for longer wait for next connection
-                clientSocket.setSoTimeout(SERVER_TIMEOUT * 2);
-                serverSocket.setSoTimeout(SERVER_TIMEOUT * 2);
+                clientSocket.setSoTimeout(clientSocket.getSoTimeout() * 3);
+                serverSocket.setSoTimeout(serverSocket.getSoTimeout() * 3);
             }
         }
         clientSocket.setSoTimeout(SERVER_TIMEOUT);
@@ -209,13 +204,12 @@ public final class HTTPHandler extends AbstractProxyHandler {
             }
         }
 
-        boolean serverRead = false;
         clientOut.writeBytes(responseHeader);
         if (cacheDate != null && cacheFile != null) {
             cacheFile.write(responseHeader.getBytes());
             cacheFile.flush();
         }
-        while (true) {
+        for (int tryAttempt = 0; tryAttempt < 4; tryAttempt++) {
             try {
                 if (cacheDate != null && cacheFile != null) {
                     byte [] buffer = new byte[8192];
@@ -250,16 +244,9 @@ public final class HTTPHandler extends AbstractProxyHandler {
                 // Client has a reply continue with the persistent connection
                 break;
             } catch (SocketTimeoutException ex) {
-                // If this is the first timeout allow more time to the server
-                // If second time assume connection was lost or timeout
-                if (!serverRead) {
-                    serverRead = true;
-                } else {
-                    break;
-                }
                 // Allow for longer wait for next connection
-                clientSocket.setSoTimeout(SERVER_TIMEOUT * 2);
-                serverSocket.setSoTimeout(SERVER_TIMEOUT * 2);
+                clientSocket.setSoTimeout(clientSocket.getSoTimeout() * 3);
+                serverSocket.setSoTimeout(serverSocket.getSoTimeout() * 3);
             }
         }
         clientSocket.setSoTimeout(SERVER_TIMEOUT);
@@ -479,9 +466,8 @@ public final class HTTPHandler extends AbstractProxyHandler {
     private void sendErrorToClient(String response) {
         try {
             clientOut.writeBytes(response);
-        } catch (IOException ex) {
-            // TODO show ui error
-            throw new RuntimeException(ex);
+        } catch (IOException ignore) {
+            // Failed to send error to the client ignore
         }
     }
 
