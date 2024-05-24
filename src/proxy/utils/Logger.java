@@ -2,12 +2,16 @@ package proxy.utils;
 
 import java.net.InetAddress;
 import java.net.URL;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class Logger {
     private static Logger loggerInstance;
     private static final Object instanceLock = new Object();
+
+    private static final SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-HH-dd HH:mm:ss");
 
     private final ConcurrentHashMap<String, ConcurrentLinkedQueue<String>> clientReports = new ConcurrentHashMap<>();
 
@@ -34,7 +38,8 @@ public class Logger {
         if (clientQueue == null) {
             clientQueue = clientReports.get(clientIP.getHostAddress());
         }
-        String log = "IP: " + clientIP.getHostAddress() + ", Domain: " + domain.getHost() +
+        Date currentDate = new Date();
+        String log = dateFormat.format(currentDate) + ", IP: " + clientIP.getHostAddress() + ", Domain: " + domain.getHost() +
                 ", Resource path: " + domain.getPath() + ", Method: " + method + ", Response: " + responseCode;
         clientQueue.add(log);
     }
@@ -44,7 +49,8 @@ public class Logger {
         if (clientQueue == null) {
             clientQueue = clientReports.get(clientIP.getHostAddress());
         }
-        String log = "IP: " + clientIP.getHostAddress() + ", Domain: " + host + ", Connection: HTTPS";
+        Date currentDate = new Date();
+        String log = dateFormat.format(currentDate) + ", IP: " + clientIP.getHostAddress() + ", Domain: " + host + ", Connection: HTTPS";
         clientQueue.add(log);
     }
 
