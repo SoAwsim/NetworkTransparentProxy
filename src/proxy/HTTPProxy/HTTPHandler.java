@@ -34,7 +34,7 @@ public final class HTTPHandler extends AbstractProxyHandler {
                 }
 
                 if (header == null) {
-                    error400();
+                    // Client did not send any headers drop the connection
                     return;
                 }
 
@@ -149,6 +149,7 @@ public final class HTTPHandler extends AbstractProxyHandler {
             }
 
             try {
+                tempData = -2;
                 tempData = clientIn.read();
                 // Did the client close the connection?
                 if (tempData == -1) {
@@ -176,15 +177,26 @@ public final class HTTPHandler extends AbstractProxyHandler {
     }
 
     private void sendAllDataToClient(URL url, String cacheHeader) throws IOException {
-        String responseHeader;
+        String responseHeader = null;
         if (cacheHeader != null) {
             responseHeader = cacheHeader;
         } else {
-            try {
-                responseHeader = readHeader(serverIn);
-            } catch (ArrayIndexOutOfBoundsException e) {
-                throw new BadGatewayException("Header limit exceeded by server", e);
+            for (int tryAttempt = 0; tryAttempt < 4; tryAttempt++) {
+                try {
+                    responseHeader = readHeader(serverIn);
+                    break;
+                } catch (ArrayIndexOutOfBoundsException e) {
+                    throw new BadGatewayException("Header limit exceeded by server", e);
+                } catch (SocketTimeoutException ex) { // Slow server
+                    int timeout = serverSocket.getSoTimeout(); // todo maybe check for int overflow
+                    serverSocket.setSoTimeout(timeout * 2);
+                }
             }
+            if (responseHeader == null) {
+                // Server timeout
+                throw new SocketTimeoutException("Server timeout");
+            }
+            serverSocket.setSoTimeout(SERVER_TIMEOUT);
         }
 
         int firstSpace = responseHeader.indexOf(' ');
@@ -237,6 +249,7 @@ public final class HTTPHandler extends AbstractProxyHandler {
             }
 
             try {
+                tempData = -2;
                 tempData = clientIn.read();
                 // Did the client close the connection?
                 if (tempData == -1) {
@@ -284,6 +297,7 @@ public final class HTTPHandler extends AbstractProxyHandler {
                 System.out.println("Asking if the cache is valid");
                 serverOut.writeBytes(request);
                 headerSent = true;
+
                 cacheResponse = readHeader(serverIn);
                 // Can use the website in the cache?
                 if (cacheResponse.substring(0, 3).equalsIgnoreCase("304")) {
@@ -326,7 +340,8 @@ public final class HTTPHandler extends AbstractProxyHandler {
                 headerSent = true;
                 try {
                     cacheResponse = readHeader(serverIn);
-                } catch (SocketTimeoutException ignore) {
+                } catch (SocketTimeoutException ex) { // Slow server
+
                 }
                 if (cacheResponse == null) {
                     throw new IOException("Reading response from the server failed!");
