@@ -26,7 +26,7 @@ public abstract class AbstractProxyListener implements Runnable {
     }
 
     public void closeSocket() throws IOException {
-        if (serverListener != null) {
+        if (serverListener != null && !serverListener.isClosed()) {
             serverOn = false;
             serverListener.close();
             serverListener = null;
