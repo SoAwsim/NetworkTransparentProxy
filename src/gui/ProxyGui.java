@@ -9,40 +9,52 @@ import javax.swing.*;
 import javax.swing.filechooser.FileSystemView;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
+import java.awt.event.WindowListener;
 import java.io.*;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 
-public class ProxyGui implements ErrorDisplay {
-    private final JFrame mainWindow;
-    private JLabel proxyStatus;
+public class ProxyGui {
+    private final JFrame mainWindow; // The main window of the application
 
-    private final JFrame blockedWindow;
+    private final JFrame blockedWindow; // The window for showing the blocked hosts
 
-    private Thread serverThread;
-    private Thread serverSSLThread;
-    private PlainProxy httpProxy;
-    private SSLProxy httpsProxy;
-    private final ProxyStorage storage;
-    private final Logger clientLogs;
+    private Thread serverPlainThread; // HTTP proxy thread
+    private Thread serverSSLThread; // HTTPS proxy thread
+    private PlainProxy httpProxy; // HTTP proxy runnable
+    private SSLProxy httpsProxy; // HTTPS proxy runnable
+
+    private final ProxyStorage storage; // Storage for proxy configuration
+    private final Logger clientLogs; // Class for the logging component
 
     private final DefaultTableModel blockedTableModel;
+    private final LogPrinter logWorker;
 
     public ProxyGui() {
-        try {
+        try { // Initialize the storage component
             storage = ProxyStorage.getStorage();
-        } catch (IOException e) {
+        } catch (IOException ex) {
             // Critical error cannot recover from this
-            throw new RuntimeException(e);
+            throw new RuntimeException(ex);
         }
 
-        clientLogs = Logger.getLogger();
+        clientLogs = Logger.getLogger(); // Initialize the logger
 
         mainWindow = new JFrame("Transparent Proxy");
-        mainWindow.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        mainWindow.setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
+        WindowListener exitListener = new WindowAdapter() { // Close operation
+            @Override
+            public void windowClosing(WindowEvent e) {
+                exitProxy();
+            }
+        };
+        mainWindow.addWindowListener(exitListener);
         mainWindow.setSize(800, 450);
         mainWindow.setResizable(true);
 
+        // Blocked domains window
         blockedWindow = new JFrame("Blocked Hosts");
         blockedWindow.setDefaultCloseOperation(JFrame.HIDE_ON_CLOSE);
         blockedWindow.setSize(600, 500);
@@ -98,53 +110,53 @@ public class ProxyGui implements ErrorDisplay {
         gc.weightx = 1.0;
         blockedWindow.add(buttonPanel, gc);
 
+        // Menu bar for the UI
         JMenuBar menuBar = new JMenuBar();
-
         JMenu fileMenu = new JMenu("File");
         JMenu helpMenu = new JMenu("Help");
 
         JMenuItem startProxy = new JMenuItem("Start");
         startProxy.addActionListener(e -> {
-            /* TODO implement proxy start logic*/
-            if (serverThread == null) {
+            if (serverPlainThread == null) { // Did we initialize the server thread?
                 try {
                     httpProxy = new PlainProxy(80);
-                } catch (IOException ex) {
-                    // todo handle it better
-                    throw new RuntimeException(ex);
-                }
-                try {
                     httpsProxy = new SSLProxy(443);
                 } catch (IOException ex) {
-                    clientLogs.addVerboseLog("Failed to create HTTPS proxy");
+                    clientLogs.addVerboseLog("Failed to start the transparent proxy");
+                    JOptionPane.showMessageDialog(
+                            mainWindow,
+                            ex.toString(),
+                            "IO Error",
+                            JOptionPane.ERROR_MESSAGE
+                    );
+                    return;
                 }
-                serverThread = new Thread(httpProxy);
+                serverPlainThread = new Thread(httpProxy);
                 serverSSLThread = new Thread(httpsProxy);
-                serverThread.start();
+                serverPlainThread.start();
                 serverSSLThread.start();
-                proxyStatus.setText("Proxy Server is Running...");
-            }
-            else if (!serverThread.isAlive()) {
-                serverThread = new Thread(httpProxy);
+                clientLogs.addVerboseLog("Transparent proxy server started");
+            } else if (!serverPlainThread.isAlive()) { // Is the server thread running?
+                serverPlainThread = new Thread(httpProxy);
                 serverSSLThread = new Thread(httpsProxy);
                 try {
                     httpProxy.initSock();
-                } catch (IOException ex) {
-                    // todo handle it better
-                    throw new RuntimeException(ex);
-                }
-                try {
                     httpsProxy.initSock();
                 } catch (IOException ex) {
-                    // todo handle it better
-                    throw new RuntimeException(ex);
+                    clientLogs.addVerboseLog("Failed to restart transparent proxy");
+                    JOptionPane.showMessageDialog(
+                            mainWindow,
+                            ex.toString(),
+                            "IO Error",
+                            JOptionPane.ERROR_MESSAGE
+                    );
+                    return;
                 }
-                serverThread.start();
+                serverPlainThread.start();
                 serverSSLThread.start();
-                proxyStatus.setText("Proxy Server is Running...");
-            }
-            else {
-                JOptionPane.showMessageDialog(mainWindow,
+            } else { // Server already running
+                JOptionPane.showMessageDialog(
+                        mainWindow,
                         "Server already running",
                         "Info",
                         JOptionPane.INFORMATION_MESSAGE
@@ -152,100 +164,84 @@ public class ProxyGui implements ErrorDisplay {
             }
         });
 
-        JMenuItem stopProxy = new JMenuItem("Stop");
-        stopProxy.addActionListener(e -> {
-            /* TODO implement proxy stop logic*/
-            try {
-                httpProxy.closeSocket();
-            } catch (IOException ex) {
-                // todo handle it better
-                throw new RuntimeException(ex);
-            }
-            try {
-                httpsProxy.closeSocket();
-            } catch (IOException ex) {
-                // todo handle better
-                throw new RuntimeException(ex);
-            }
-            proxyStatus.setText("Proxy Server is Stopped...");
-        });
+        JMenuItem stopButton = new JMenuItem("Stop");
+        stopButton.addActionListener(e -> stopProxy(false));
 
         JMenuItem createReport = new JMenuItem("Report");
         createReport.addActionListener(e -> {
             do {
                 String client = JOptionPane.showInputDialog("Enter Client IP address");
-                if (client == null || client.isBlank()) {
+                if (client == null) { // User selected cancel
                     break;
+                } else if (client.isEmpty()) { // Empty ip
+                    JOptionPane.showMessageDialog(
+                            mainWindow,
+                            "Please enter a valid client",
+                            "Address Error",
+                            JOptionPane.ERROR_MESSAGE
+                    );
+                    continue;
                 }
                 String[] logs = clientLogs.getClientLog(client);
                 if (logs == null) {
-                    JOptionPane.showMessageDialog(mainWindow, "Client Not Found", "Address Error", JOptionPane.ERROR_MESSAGE);
+                    JOptionPane.showMessageDialog(
+                            mainWindow,
+                            "Client Not Found",
+                            "Address Error",
+                            JOptionPane.ERROR_MESSAGE
+                    );
                     continue;
                 }
                 JFileChooser fileChooser = new JFileChooser(FileSystemView.getFileSystemView().getHomeDirectory());
                 int result = fileChooser.showSaveDialog(mainWindow);
-                if (result == JFileChooser.APPROVE_OPTION) {
-                    SwingWorker<Integer, Object> saveToText = new SwingWorker<>() {
-                        @Override
-                        protected Integer doInBackground() {
-                            try (FileOutputStream txtOut = new FileOutputStream(fileChooser.getSelectedFile());
-                                 BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(txtOut))) {
-                                for (String s : logs) {
-                                    writer.write(s);
-                                    writer.newLine();
-                                }
-                            } catch (IOException e) {
-                                return 1;
-                            }
-                            return 0;
-                        }
-
-                        @Override
-                        protected void done() {
-                            int result;
-                            try {
-                                result = get();
-                            } catch (Exception e) {
-                                JOptionPane.showMessageDialog(mainWindow, "Report saving failed!", "IO Error", JOptionPane.ERROR_MESSAGE);
-                                return;
-                            }
-                            if (result == 0) {
-                                JOptionPane.showMessageDialog(mainWindow, "File saved", "Confirmation", JOptionPane.INFORMATION_MESSAGE);
-                            } else {
-                                JOptionPane.showMessageDialog(mainWindow, "Report saving failed!", "IO Error", JOptionPane.ERROR_MESSAGE);
-                            }
-                        }
-                    };
+                if (result == JFileChooser.APPROVE_OPTION) { // User selected a valid file
+                    ReportCreator saveToText = new ReportCreator(fileChooser.getSelectedFile(), logs, mainWindow);
                     saveToText.execute();
                 }
-
                 break;
             } while (true);
         });
 
         JMenuItem filterHost = new JMenuItem("Add host to filter");
         filterHost.addActionListener(e -> {
-            if (storage != null) {
-                do {
-                    String address = JOptionPane.showInputDialog(mainWindow, "Enter IP address or hostname to block: ");
-                    if (address == null || address.isBlank()) {
-                        break;
-                    }
-                    try {
-                        storage.blockAddress(address);
-                    } catch (UnknownHostException ex) {
-                        JOptionPane.showMessageDialog(mainWindow, "Hostname or IP address is not valid", "Address Error", JOptionPane.ERROR_MESSAGE);
-                        continue;
-                    } catch (IOException ex) {
-                        JOptionPane.showMessageDialog(mainWindow, "IO error during writing to disk", "IO Error", JOptionPane.ERROR_MESSAGE);
-                        break;
-                    }
-                    JOptionPane.showMessageDialog(mainWindow, "Hostname is blocked", "Confirmation", JOptionPane.INFORMATION_MESSAGE);
+            do {
+                String address = JOptionPane.showInputDialog(
+                        mainWindow,
+                        "Enter IP address or hostname to block: "
+                );
+                if (address == null) { // User selected cancel
                     break;
-                } while (true);
-            } else {
-                JOptionPane.showMessageDialog(mainWindow, "Cannot read config data of proxy server!", "IO Error", JOptionPane.ERROR_MESSAGE);
-            }
+                }
+                try {
+                    if (address.isEmpty()) { // User entered empty ip
+                        throw new UnknownHostException();
+                    }
+                    storage.blockAddress(address);
+                } catch (UnknownHostException ex) {
+                    JOptionPane.showMessageDialog(
+                            mainWindow,
+                            "Hostname or IP address is not valid",
+                            "Address Error",
+                            JOptionPane.ERROR_MESSAGE
+                    );
+                    continue;
+                } catch (IOException ex) {
+                    JOptionPane.showMessageDialog(
+                            mainWindow,
+                            "IO error during writing to disk",
+                            "IO Error",
+                            JOptionPane.ERROR_MESSAGE
+                    );
+                    break;
+                }
+                JOptionPane.showMessageDialog(
+                        mainWindow,
+                        "Hostname is blocked",
+                        "Confirmation",
+                        JOptionPane.INFORMATION_MESSAGE
+                );
+                break;
+            } while (true);
         });
 
         JMenuItem displayFilter = new JMenuItem("Display current filtered host");
@@ -255,13 +251,10 @@ public class ProxyGui implements ErrorDisplay {
         });
 
         JMenuItem exitApp = new JMenuItem("Exit");
-        exitApp.addActionListener(e -> {
-            /* TODO implement proxy stop logic */
-            System.exit(0);
-        });
+        exitApp.addActionListener(e -> exitProxy());
 
         fileMenu.add(startProxy);
-        fileMenu.add(stopProxy);
+        fileMenu.add(stopButton);
         fileMenu.add(createReport);
         fileMenu.add(filterHost);
         fileMenu.add(displayFilter);
@@ -276,27 +269,72 @@ public class ProxyGui implements ErrorDisplay {
         ));
 
         helpMenu.add(aboutMenuItem);
-
         menuBar.add(fileMenu);
         menuBar.add(helpMenu);
-
         mainWindow.setJMenuBar(menuBar);
 
-        JPanel panel = new JPanel();
-        proxyStatus = new JLabel("Proxy Server is Stopped...");
+        // Log window
         JTextArea logArea = new JTextArea();
         logArea.setEditable(false);
-        JScrollPane scrollLog = new JScrollPane(logArea, JScrollPane.VERTICAL_SCROLLBAR_ALWAYS, JScrollPane.HORIZONTAL_SCROLLBAR_ALWAYS);
+        JScrollPane scrollLog = new JScrollPane(
+                logArea,
+                JScrollPane.VERTICAL_SCROLLBAR_ALWAYS,
+                JScrollPane.HORIZONTAL_SCROLLBAR_ALWAYS
+        );
 
-        //panel.add(proxyStatus);
-        //panel.add(scrollLog);
-        //mainWindow.add(panel);
         mainWindow.add(scrollLog);
         mainWindow.setVisible(true);
-        var logWorker = new LogPrinter(logArea);
+
+        // Start log worker to print the logs
+        logWorker = new LogPrinter(logArea);
         logWorker.execute();
     }
 
+    // Method to stop the proxy server
+    private void stopProxy(boolean suppressWindow) {
+        try {
+            // Did we initialize the proxy before?
+            if (httpProxy == null || httpsProxy == null) {
+                throw new ProxyAlreadyClosedException();
+            }
+            httpProxy.closeSocket();
+            httpsProxy.closeSocket();
+        } catch (ProxyAlreadyClosedException ex) {
+            if (!suppressWindow) {
+                JOptionPane.showMessageDialog(mainWindow,
+                        "Proxy server already closed!",
+                        "Information",
+                        JOptionPane.INFORMATION_MESSAGE
+                );
+            }
+        } catch (IOException ex) {
+            clientLogs.addVerboseLog(ex.toString());
+            JOptionPane.showMessageDialog(
+                    mainWindow,
+                    ex.toString(),
+                    "IO Error",
+                    JOptionPane.ERROR_MESSAGE
+            );
+        }
+    }
+
+    // Exit the proxy application
+    private void exitProxy() {
+        int selection = JOptionPane.showConfirmDialog(
+                mainWindow,
+                "Do you want to exit?",
+                "Exit Confirmation",
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.QUESTION_MESSAGE
+        );
+        if (selection == 0) { // User selected YES
+            stopProxy(true);
+            logWorker.cancel(true);
+            System.exit(0);
+        }
+    }
+
+    // Not the most efficient thing but works fine for this project
     private void refreshBlockedList() {
         blockedTableModel.setRowCount(0);
         var allBlocked = storage.getAllBlocked();
@@ -304,21 +342,5 @@ public class ProxyGui implements ErrorDisplay {
             Object[] row = {element.getKey(), element.getValue()};
             blockedTableModel.addRow(row);
         }
-    }
-
-    @Override
-    public void showExceptionWindow(Exception e) {
-        // Are we the EDT thread?
-        if (!SwingUtilities.isEventDispatchThread()) {
-            SwingUtilities.invokeLater(() -> showExceptionWindow(e));
-            return;
-        }
-        // If we are the EDT thread show error dialog
-        JOptionPane.showMessageDialog(
-                mainWindow,
-                e.getMessage(),
-                e.toString(),
-                JOptionPane.ERROR_MESSAGE
-        );
     }
 }

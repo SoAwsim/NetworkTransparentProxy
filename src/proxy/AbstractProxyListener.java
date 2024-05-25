@@ -1,5 +1,6 @@
 package proxy;
 
+import gui.ProxyAlreadyClosedException;
 import proxy.utils.Logger;
 
 import java.io.IOException;
@@ -26,10 +27,11 @@ public abstract class AbstractProxyListener implements Runnable {
     }
 
     public void closeSocket() throws IOException {
-        if (serverListener != null && !serverListener.isClosed()) {
-            serverOn = false;
-            serverListener.close();
-            serverListener = null;
+        if (serverListener == null || serverListener.isClosed()) {
+            throw new ProxyAlreadyClosedException();
         }
+        serverOn = false;
+        serverListener.close();
+        serverListener = null;
     }
 }
