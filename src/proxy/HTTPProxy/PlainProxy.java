@@ -3,7 +3,8 @@ package proxy.HTTPProxy;
 import proxy.AbstractProxyListener;
 
 import java.io.IOException;
-import java.net.*;
+import java.net.Socket;
+import java.net.SocketException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;

@@ -1,9 +1,9 @@
 package gui;
 
 import proxy.HTTPProxy.PlainProxy;
-import proxy.utils.ProxyStorage;
 import proxy.HTTPSProxy.SSLProxy;
 import proxy.utils.Logger;
+import proxy.utils.ProxyStorage;
 
 import javax.swing.*;
 import javax.swing.filechooser.FileSystemView;
@@ -12,7 +12,7 @@ import java.awt.*;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.awt.event.WindowListener;
-import java.io.*;
+import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 

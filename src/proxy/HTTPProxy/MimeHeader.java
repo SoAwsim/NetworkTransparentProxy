@@ -1,6 +1,7 @@
 package proxy.HTTPProxy;
 
-import java.util.*;
+import java.util.HashMap;
+import java.util.StringTokenizer;
 
 public class MimeHeader extends HashMap<String, String> {
 
