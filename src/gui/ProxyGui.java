@@ -42,7 +42,6 @@ public class ProxyGui implements ErrorDisplay {
         mainWindow.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         mainWindow.setSize(800, 450);
         mainWindow.setResizable(true);
-        mainWindow.setLayout(new GridBagLayout());
 
         blockedWindow = new JFrame("Blocked Hosts");
         blockedWindow.setDefaultCloseOperation(JFrame.HIDE_ON_CLOSE);
@@ -285,11 +284,16 @@ public class ProxyGui implements ErrorDisplay {
 
         JPanel panel = new JPanel();
         proxyStatus = new JLabel("Proxy Server is Stopped...");
+        JTextArea logArea = new JTextArea();
+        logArea.setEditable(false);
+        JScrollPane scrollLog = new JScrollPane(logArea, JScrollPane.VERTICAL_SCROLLBAR_ALWAYS, JScrollPane.HORIZONTAL_SCROLLBAR_ALWAYS);
 
-        panel.add(proxyStatus);
-        mainWindow.add(panel);
+        //panel.add(proxyStatus);
+        //panel.add(scrollLog);
+        //mainWindow.add(panel);
+        mainWindow.add(scrollLog);
         mainWindow.setVisible(true);
-        var logWorker = new LogPrinter();
+        var logWorker = new LogPrinter(logArea);
         logWorker.execute();
     }
 
