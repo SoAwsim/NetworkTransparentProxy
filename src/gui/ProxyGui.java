@@ -1,6 +1,6 @@
 package gui;
 
-import proxy.HTTPProxy.ProxyServer;
+import proxy.HTTPProxy.PlainProxy;
 import proxy.utils.ProxyStorage;
 import proxy.HTTPSProxy.SSLProxy;
 import proxy.utils.Logger;
@@ -21,7 +21,7 @@ public class ProxyGui implements ErrorDisplay {
 
     private Thread serverThread;
     private Thread serverSSLThread;
-    private ProxyServer httpProxy;
+    private PlainProxy httpProxy;
     private SSLProxy httpsProxy;
     private final ProxyStorage storage;
     private final Logger clientLogs;
@@ -108,7 +108,7 @@ public class ProxyGui implements ErrorDisplay {
             /* TODO implement proxy start logic*/
             if (serverThread == null) {
                 try {
-                    httpProxy = new ProxyServer(80);
+                    httpProxy = new PlainProxy(80);
                 } catch (IOException ex) {
                     // todo handle it better
                     throw new RuntimeException(ex);

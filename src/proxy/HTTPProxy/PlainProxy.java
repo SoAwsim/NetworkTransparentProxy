@@ -8,8 +8,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
-public class ProxyServer extends AbstractProxyListener {
-    public ProxyServer(int port) throws IOException {
+public class PlainProxy extends AbstractProxyListener {
+    public PlainProxy(int port) throws IOException {
         super(port);
     }
 
