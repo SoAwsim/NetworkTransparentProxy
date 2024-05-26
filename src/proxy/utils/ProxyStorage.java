@@ -2,10 +2,7 @@ package proxy.utils;
 
 import java.io.*;
 import java.net.InetAddress;
-import java.util.ArrayList;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class ProxyStorage {
@@ -14,7 +11,7 @@ public class ProxyStorage {
 
     private final File cacheDir;
     private final File cacheIndex;
-    private final ArrayList<String> writeLock;
+    private final ConcurrentHashMap<String, Object> writeLock;
     private final File blockedIndex;
     private ConcurrentHashMap<String, String> cacheMap;
     private ConcurrentHashMap<String, String> blockedMap;
@@ -47,14 +44,18 @@ public class ProxyStorage {
         // Initialize blocked hosts
         blockedIndex = new File(configDir + File.separator + "blocked_index");
         if (blockedIndex.exists()) {
+            // Read object back into the memory
             try (FileInputStream index = new FileInputStream(blockedIndex);
                 ObjectInputStream blocked = new ObjectInputStream(index)) {
                 blockedMap = (ConcurrentHashMap<String, String>) blocked.readObject();
             } catch (ClassNotFoundException e) {
-                blockedIndex.delete();
+                // Try to delete broken blocked_index
+                if (!blockedIndex.delete()) {
+                    throw new IOException("Failed to delete the broken blocked_index");
+                }
                 blockedMap = new ConcurrentHashMap<>();
             }
-        } else {
+        } else { // Blocked_index does not exist so create a new one
             blockedMap = new ConcurrentHashMap<>();
         }
 
@@ -67,16 +68,21 @@ public class ProxyStorage {
             }
         } // No need to load files here to the memory
 
+        // Initialize cache index
         cacheIndex = new File(configDir + File.separator + "cache_index");
         if (cacheIndex.exists()) {
             try (FileInputStream index = new FileInputStream(cacheIndex);
                 ObjectInputStream map = new ObjectInputStream(index)) {
                 cacheMap = (ConcurrentHashMap<String, String>) map.readObject();
             } catch (ClassNotFoundException e) {
-                // File reading failed for index therefore clear all cache and reset index
-                cacheIndex.delete();
+                // Try to remove broken
+                if (!cacheIndex.delete()) {
+                    throw new IOException("Failed to delete the broken cache_index");
+                }
                 for (File file: Objects.requireNonNull(cacheDir.listFiles())) {
-                    file.delete();
+                    if (!file.delete()) {
+                        throw new IOException("Failed to remove the broken cache files!");
+                    }
                 }
 
                 cacheMap = new ConcurrentHashMap<>();
@@ -85,12 +91,12 @@ public class ProxyStorage {
             cacheMap = new ConcurrentHashMap<>();
         }
 
-        writeLock = new ArrayList<>();
+        writeLock = new ConcurrentHashMap<>();
     }
 
     public boolean isBlocked(InetAddress ip) {
         String hostname = ip.getHostName();
-        if (hostname.startsWith("www.")) {
+        if (hostname.startsWith("www.")) { // Remove www. part since we do not store that
             hostname = hostname.substring(4);
         }
         return blockedMap.get(hostname) != null;
@@ -126,45 +132,39 @@ public class ProxyStorage {
     }
 
     public Object[] isCached(String fileName) throws IOException {
-        fileName = fileName.replace("/", " ");
-        String cacheDate = cacheMap.get(fileName);
+        String encodedFileName = Base64.getEncoder().encodeToString(fileName.getBytes());
+        String cacheDate = cacheMap.get(encodedFileName);
         if (cacheDate != null) {
-            return new Object[] {new FileInputStream(cacheDir + File.separator + fileName + ".data"), cacheDate};
+            return new Object[] {new FileInputStream(cacheDir + File.separator + encodedFileName + ".data"), cacheDate};
         }
         return null;
     }
 
     public FileOutputStream getCacheInput(String fileName) throws IOException {
-        // Replace / with empty space / causes problems with the directory structure
-        fileName = fileName.replace("/", " ");
-        synchronized (writeLock) {
-            // Check if another thread is trying to save the same cache
-            if(writeLock.contains(fileName)) {
-                return null;
-            } else {
-                writeLock.add(fileName);
-            }
+        String encodedFileName = Base64.getEncoder().encodeToString(fileName.getBytes());
+        Object prev = writeLock.putIfAbsent(encodedFileName, new Object());
+        // Another thread has the lock exit
+        if (prev != null) {
+            return null;
         }
-        return new FileOutputStream(cacheDir + File.separator + fileName + ".data");
+        return new FileOutputStream(cacheDir + File.separator + encodedFileName + ".data");
     }
 
     public void saveCacheIndex(String fileName, String date) throws IOException {
-        fileName = fileName.replace("/", " ");
-        synchronized (writeLock) {
-            if (!writeLock.contains(fileName)) {
-                return;
-            }
+        String encodedFileName = Base64.getEncoder().encodeToString(fileName.getBytes());
+        Object prev = writeLock.get(encodedFileName);
+        // File not locked, possible wrong call exit
+        if (prev == null) {
+            return;
         }
-        System.out.println("Saving index");
-        cacheMap.put(fileName, date);
+        cacheMap.put(encodedFileName, date);
+        // Lock cacheIndex file to prevent multiple threads from writing to it
         synchronized (cacheIndex) {
             try (FileOutputStream fileOut = new FileOutputStream(cacheIndex);
                  ObjectOutputStream objectStream = new ObjectOutputStream(fileOut)) {
                 objectStream.writeObject(cacheMap);
             }
         }
-        synchronized (writeLock) {
-            writeLock.remove(fileName);
-        }
+        writeLock.remove(encodedFileName);
     }
 }
