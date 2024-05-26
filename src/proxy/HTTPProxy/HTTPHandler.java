@@ -197,7 +197,7 @@ public final class HTTPHandler extends AbstractProxyHandler {
         FileOutputStream cacheFile = null;
         if (cacheDate != null) {
             try {
-                cacheFile = storage.getCacheInput(url.getHost() + url.getPath());
+                cacheFile = storage.getCacheInput(url);
             } catch (IOException e) {
                 // Disable cache saving due to IO error
                 cacheDate = null;
@@ -229,7 +229,7 @@ public final class HTTPHandler extends AbstractProxyHandler {
             if (cacheFile != null) {
                 cacheFile.flush();
                 cacheFile.close();
-                storage.saveCacheIndex(url.getHost() + url.getPath(), cacheDate);
+                storage.saveCacheIndex(url, cacheDate);
             }
 
             try {
@@ -259,7 +259,7 @@ public final class HTTPHandler extends AbstractProxyHandler {
     }
 
     private void handleHead(String header, URL url) throws IOException {
-        Object[] cacheResult = storage.isCached(url.getHost() + url.getPath());
+        Object[] cacheResult = storage.isCached(url);
         boolean headerSent = false;
         int secondLine = header.indexOf('\r') + 2;
         MimeHeader mh = new MimeHeader(header.substring(secondLine));
@@ -298,7 +298,7 @@ public final class HTTPHandler extends AbstractProxyHandler {
     }
 
     private void handleGet(String header, URL url) throws IOException {
-        Object[] cacheResult = storage.isCached(url.getHost() + url.getPath());
+        Object[] cacheResult = storage.isCached(url);
         boolean headerSent = false;
         int secondLine = header.indexOf('\r') + 2;
         MimeHeader mh = new MimeHeader(header.substring(secondLine));

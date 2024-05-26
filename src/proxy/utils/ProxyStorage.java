@@ -2,6 +2,9 @@ package proxy.utils;
 
 import java.io.*;
 import java.net.InetAddress;
+import java.net.URL;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -131,8 +134,8 @@ public class ProxyStorage {
         }
     }
 
-    public Object[] isCached(String fileName) throws IOException {
-        String encodedFileName = Base64.getEncoder().encodeToString(fileName.getBytes());
+    public Object[] isCached(URL fileName) throws IOException {
+        String encodedFileName = URLEncoder.encode(fileName.getHost() + fileName.getPath(), StandardCharsets.UTF_8);
         String cacheDate = cacheMap.get(encodedFileName);
         if (cacheDate != null) {
             return new Object[] {new FileInputStream(cacheDir + File.separator + encodedFileName + ".data"), cacheDate};
@@ -140,8 +143,8 @@ public class ProxyStorage {
         return null;
     }
 
-    public FileOutputStream getCacheInput(String fileName) throws IOException {
-        String encodedFileName = Base64.getEncoder().encodeToString(fileName.getBytes());
+    public FileOutputStream getCacheInput(URL fileName) throws IOException {
+        String encodedFileName = URLEncoder.encode(fileName.getHost() + fileName.getPath(), StandardCharsets.UTF_8);
         Object prev = writeLock.putIfAbsent(encodedFileName, new Object());
         // Another thread has the lock exit
         if (prev != null) {
@@ -150,8 +153,8 @@ public class ProxyStorage {
         return new FileOutputStream(cacheDir + File.separator + encodedFileName + ".data");
     }
 
-    public void saveCacheIndex(String fileName, String date) throws IOException {
-        String encodedFileName = Base64.getEncoder().encodeToString(fileName.getBytes());
+    public void saveCacheIndex(URL fileName, String date) throws IOException {
+        String encodedFileName = URLEncoder.encode(fileName.getHost() + fileName.getPath(), StandardCharsets.UTF_8);
         Object prev = writeLock.get(encodedFileName);
         // File not locked, possible wrong call exit
         if (prev == null) {
