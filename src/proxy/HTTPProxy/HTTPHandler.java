@@ -212,7 +212,7 @@ public final class HTTPHandler extends AbstractProxyHandler {
             cacheFile.write(responseHeader.getBytes());
         }
 
-        for (int cacheAttempt = 0; cacheAttempt < 4; cacheAttempt++) {
+        for (int tryAttempt = 0; tryAttempt < 4; tryAttempt++) {
             try {
                 if (cacheDate != null && cacheFile != null) {
                     byte [] buffer = new byte[8192];
@@ -229,17 +229,7 @@ public final class HTTPHandler extends AbstractProxyHandler {
                 serverSocket.setSoTimeout(serverSocket.getSoTimeout() * 3);
                 clientSocket.setSoTimeout(clientSocket.getSoTimeout() * 3);
             }
-        }
-        serverSocket.setSoTimeout(SERVER_TIMEOUT);
-        clientSocket.setSoTimeout(SERVER_TIMEOUT);
 
-        if (cacheFile != null) {
-            cacheFile.flush();
-            cacheFile.close();
-            storage.saveCacheIndex(url, cacheDate);
-        }
-
-        for (int tryAttempt = 0; tryAttempt < 4; tryAttempt++) {
             try {
                 tempData = -2;
                 tempData = clientIn.read();
@@ -257,6 +247,13 @@ public final class HTTPHandler extends AbstractProxyHandler {
                 serverSocket.setSoTimeout(serverSocket.getSoTimeout() * 3);
             }
         }
+
+        if (cacheFile != null) {
+            cacheFile.flush();
+            cacheFile.close();
+            storage.saveCacheIndex(url, cacheDate);
+        }
+
         clientSocket.setSoTimeout(SERVER_TIMEOUT);
         serverSocket.setSoTimeout(SERVER_TIMEOUT);
     }
