@@ -207,7 +207,6 @@ public final class HTTPHandler extends AbstractProxyHandler {
         clientOut.writeBytes(responseHeader);
         if (cacheDate != null && cacheFile != null) {
             cacheFile.write(responseHeader.getBytes());
-            cacheFile.flush();
         }
         for (int tryAttempt = 0; tryAttempt < 4; tryAttempt++) {
             try {
@@ -217,7 +216,6 @@ public final class HTTPHandler extends AbstractProxyHandler {
                     while((read = serverIn.read(buffer, 0, 8192)) >= 0) {
                         clientOut.write(buffer, 0, read);
                         cacheFile.write(buffer, 0, read);
-                        cacheFile.flush();
                     }
                 } else {
                     serverIn.transferTo(clientOut);
