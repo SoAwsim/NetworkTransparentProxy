@@ -197,7 +197,10 @@ public final class HTTPHandler extends AbstractProxyHandler {
         FileOutputStream cacheFile = null;
         if (cacheDate != null) {
             try {
-                cacheFile = storage.getCacheInput(url);
+                File file = storage.getCacheInput(url);
+                if (file != null) {
+                    cacheFile = new FileOutputStream(storage.getCacheInput(url));
+                }
             } catch (IOException e) {
                 // Disable cache saving due to IO error
                 cacheDate = null;

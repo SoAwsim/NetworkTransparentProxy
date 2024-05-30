@@ -143,14 +143,14 @@ public class ProxyStorage {
         return null;
     }
 
-    public FileOutputStream getCacheInput(URL fileName) throws IOException {
+    public File getCacheInput(URL fileName) throws IOException {
         String encodedFileName = URLEncoder.encode(fileName.getHost() + fileName.getPath(), StandardCharsets.US_ASCII);
         Object prev = writeLock.putIfAbsent(encodedFileName, new Object());
         // Another thread has the lock exit
         if (prev != null) {
             return null;
         }
-        return new FileOutputStream(cacheDir + File.separator + encodedFileName + ".data");
+        return new File(cacheDir + File.separator + encodedFileName + ".data");
     }
 
     public void saveCacheIndex(URL fileName, String date) throws IOException {
