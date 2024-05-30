@@ -199,7 +199,7 @@ public final class HTTPHandler extends AbstractProxyHandler {
             try {
                 File file = storage.getCacheInput(url);
                 if (file != null) {
-                    cacheFile = new FileOutputStream(storage.getCacheInput(url));
+                    cacheFile = new FileOutputStream(file);
                 }
             } catch (IOException e) {
                 // Disable cache saving due to IO error
