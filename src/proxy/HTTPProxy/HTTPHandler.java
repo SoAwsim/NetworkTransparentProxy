@@ -212,50 +212,52 @@ public final class HTTPHandler extends AbstractProxyHandler {
             cacheFile.write(responseHeader.getBytes());
         }
 
-        for (int tryAttempt = 0; tryAttempt < 4; tryAttempt++) {
-            try {
-                if (cacheDate != null && cacheFile != null) {
-                    byte [] buffer = new byte[8192];
-                    int read;
-                    while((read = serverIn.read(buffer, 0, 8192)) >= 0) {
-                        clientOut.write(buffer, 0, read);
-                        cacheFile.write(buffer, 0, read);
+        try {
+            for (int tryAttempt = 0; tryAttempt < 4; tryAttempt++) {
+                try {
+                    if (cacheDate != null && cacheFile != null) {
+                        byte [] buffer = new byte[8192];
+                        int read;
+                        while((read = serverIn.read(buffer, 0, 8192)) >= 0) {
+                            clientOut.write(buffer, 0, read);
+                            cacheFile.write(buffer, 0, read);
+                        }
+                        break;
+                    } else {
+                        serverIn.transferTo(clientOut);
                     }
+                } catch (SocketTimeoutException ex) {
+                    serverSocket.setSoTimeout(serverSocket.getSoTimeout() * 3);
+                    clientSocket.setSoTimeout(clientSocket.getSoTimeout() * 3);
+                }
+
+                try {
+                    tempData = -2;
+                    tempData = clientIn.read();
+                    // Did the client close the connection?
+                    if (tempData == -1) {
+                        clientLogs.addVerboseLog("HTTP Connection closed by the client");
+                        keepConnection = false;
+                        return;
+                    }
+                    // Client has a reply continue with the persistent connection
                     break;
-                } else {
-                    serverIn.transferTo(clientOut);
+                } catch (SocketTimeoutException ex) {
+                    // Allow for longer wait for next connection
+                    clientSocket.setSoTimeout(clientSocket.getSoTimeout() * 3);
+                    serverSocket.setSoTimeout(serverSocket.getSoTimeout() * 3);
                 }
-            } catch (SocketTimeoutException ex) {
-                serverSocket.setSoTimeout(serverSocket.getSoTimeout() * 3);
-                clientSocket.setSoTimeout(clientSocket.getSoTimeout() * 3);
+            }
+        } finally {
+            if (cacheFile != null) {
+                cacheFile.flush();
+                cacheFile.close();
+                storage.saveCacheIndex(url, cacheDate);
             }
 
-            try {
-                tempData = -2;
-                tempData = clientIn.read();
-                // Did the client close the connection?
-                if (tempData == -1) {
-                    clientLogs.addVerboseLog("HTTP Connection closed by the client");
-                    keepConnection = false;
-                    return;
-                }
-                // Client has a reply continue with the persistent connection
-                break;
-            } catch (SocketTimeoutException ex) {
-                // Allow for longer wait for next connection
-                clientSocket.setSoTimeout(clientSocket.getSoTimeout() * 3);
-                serverSocket.setSoTimeout(serverSocket.getSoTimeout() * 3);
-            }
+            clientSocket.setSoTimeout(SERVER_TIMEOUT);
+            serverSocket.setSoTimeout(SERVER_TIMEOUT);
         }
-
-        if (cacheFile != null) {
-            cacheFile.flush();
-            cacheFile.close();
-            storage.saveCacheIndex(url, cacheDate);
-        }
-
-        clientSocket.setSoTimeout(SERVER_TIMEOUT);
-        serverSocket.setSoTimeout(SERVER_TIMEOUT);
     }
 
     private String canCache(MimeHeader parameters) {
