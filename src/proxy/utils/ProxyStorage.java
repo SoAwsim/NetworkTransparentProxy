@@ -135,7 +135,7 @@ public class ProxyStorage {
     }
 
     public Object[] isCached(URL fileName) throws IOException {
-        String encodedFileName = URLEncoder.encode(fileName.getHost() + fileName.getPath(), StandardCharsets.UTF_8);
+        String encodedFileName = URLEncoder.encode(fileName.getHost() + fileName.getPath(), StandardCharsets.US_ASCII);
         String cacheDate = cacheMap.get(encodedFileName);
         if (cacheDate != null) {
             return new Object[] {new FileInputStream(cacheDir + File.separator + encodedFileName + ".data"), cacheDate};
@@ -144,7 +144,7 @@ public class ProxyStorage {
     }
 
     public FileOutputStream getCacheInput(URL fileName) throws IOException {
-        String encodedFileName = URLEncoder.encode(fileName.getHost() + fileName.getPath(), StandardCharsets.UTF_8);
+        String encodedFileName = URLEncoder.encode(fileName.getHost() + fileName.getPath(), StandardCharsets.US_ASCII);
         Object prev = writeLock.putIfAbsent(encodedFileName, new Object());
         // Another thread has the lock exit
         if (prev != null) {
@@ -154,7 +154,7 @@ public class ProxyStorage {
     }
 
     public void saveCacheIndex(URL fileName, String date) throws IOException {
-        String encodedFileName = URLEncoder.encode(fileName.getHost() + fileName.getPath(), StandardCharsets.UTF_8);
+        String encodedFileName = URLEncoder.encode(fileName.getHost() + fileName.getPath(), StandardCharsets.US_ASCII);
         Object prev = writeLock.get(encodedFileName);
         // File not locked, possible wrong call exit
         if (prev == null) {
