@@ -150,32 +150,36 @@ public final class HTTPHandler extends AbstractProxyHandler {
 
     // Overloaded function, this one does not do caching suitable for post, options
     private void sendAllDataToClient() throws IOException {
-        for (int tryAttempt = 0; tryAttempt < 4; tryAttempt++) {
-            try {
-                serverIn.transferTo(clientOut);
-            } catch (SocketTimeoutException ignore) {
-                // Ignore for now
-            }
-
-            try {
-                tempData = -2;
-                tempData = clientIn.read();
-                // Did the client close the connection?
-                if (tempData == -1) {
-                    clientLogs.addVerboseLog("HTTP Connection closed by the client");
-                    keepConnection = false;
-                    return;
+        try {
+            for (int tryAttempt = 0; tryAttempt < 4; tryAttempt++) {
+                try {
+                    serverIn.transferTo(clientOut);
+                } catch (SocketTimeoutException ignore) {
+                    // Ignore for now
                 }
-                // Client has a reply continue with the persistent connection
-                break;
-            } catch (SocketTimeoutException ex) {
-                // Allow for longer wait for next connection
-                clientSocket.setSoTimeout(clientSocket.getSoTimeout() * 3);
-                serverSocket.setSoTimeout(serverSocket.getSoTimeout() * 3);
+
+                try {
+                    tempData = -2;
+                    tempData = clientIn.read();
+                    // Did the client close the connection?
+                    if (tempData == -1) {
+                        clientLogs.addVerboseLog("HTTP Connection closed by the client");
+                        keepConnection = false;
+                        return;
+                    }
+                    // Client has a reply continue with the persistent connection
+                    break;
+                } catch (SocketTimeoutException ex) {
+                    // Allow for longer wait for next connection
+                    clientSocket.setSoTimeout(clientSocket.getSoTimeout() * 3);
+                    serverSocket.setSoTimeout(serverSocket.getSoTimeout() * 3);
+                }
             }
+        } finally {
+            // Reset timeout values back to their default
+            clientSocket.setSoTimeout(SERVER_TIMEOUT);
+            serverSocket.setSoTimeout(SERVER_TIMEOUT);
         }
-        clientSocket.setSoTimeout(SERVER_TIMEOUT);
-        serverSocket.setSoTimeout(SERVER_TIMEOUT);
     }
 
     private void sendAllDataToClient(URL url, String cacheHeader) throws IOException {
