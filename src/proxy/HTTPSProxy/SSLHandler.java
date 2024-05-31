@@ -31,10 +31,12 @@ public final class SSLHandler extends AbstractProxyHandler {
                     } catch (SocketTimeoutException ignore) {
                     }
                     if (bufferIndex == -1) {
+                        // Client closed the connection
                         return;
                     }
-                    // Check if CONNECT
+
                     try {
+                        // Check if CONNECT
                         if (
                                 sharedBuffer[0] == 'C' && sharedBuffer[1] == 'O' && sharedBuffer[2] == 'N' && sharedBuffer[3] == 'N'
                                         && sharedBuffer[4] == 'E' && sharedBuffer[5] == 'C' && sharedBuffer[6] == 'T'
@@ -50,6 +52,11 @@ public final class SSLHandler extends AbstractProxyHandler {
                             int firstSpace = header.indexOf(' ');
                             int portDiv = header.indexOf(':');
                             hostAddr = InetAddress.getByName(header.substring(firstSpace + 1, portDiv));
+
+                            if (hostAddr != null) {
+                                clientLogs.addLog(clientSocket.getInetAddress(), hostAddr.getHostName());
+                            }
+
                             connectReq = true;
                         } else {
                             // Send rest of the data to the server
@@ -60,6 +67,10 @@ public final class SSLHandler extends AbstractProxyHandler {
                             }
                             if (strHost != null) {
                                 hostAddr = InetAddress.getByName(strHost);
+                            }
+
+                            if (hostAddr != null) {
+                                clientLogs.addLog(clientSocket.getInetAddress(), hostAddr.getHostName());
                             }
                         }
                     } catch (UnknownHostException ignore) {
@@ -73,8 +84,12 @@ public final class SSLHandler extends AbstractProxyHandler {
                     connectReq = false;
                 }
 
-                if (hostAddr == null || storage.isBlocked(hostAddr)) {
-                    // Host address not found, or the domain is blocked, directly drop the connection
+                if (hostAddr == null) {
+                    // Host address not found
+                    return;
+                } else if (storage.isBlocked(hostAddr)) {
+                    // Domain is blocked drop the connection
+                    clientLogs.addBlockedLog(clientSocket.getInetAddress(), hostAddr.getHostAddress());
                     return;
                 }
 
@@ -122,7 +137,6 @@ public final class SSLHandler extends AbstractProxyHandler {
                     }
                 } catch (SocketTimeoutException ignore) {
                 }
-                clientLogs.addLog(clientSocket.getInetAddress(), hostAddr.getHostName());
             } while (true);
         } catch (SocketTimeoutException ignore) {
             // Close the connection

@@ -35,11 +35,19 @@ public class Logger {
     private Logger() {
     }
 
-    public void addLog(InetAddress clientIP, URL domain, String method, String responseCode) {
+    private ConcurrentLinkedQueue<String> getClientLogQueue(InetAddress clientIP) {
         var clientQueue = clientReports.putIfAbsent(clientIP.getHostAddress(), new ConcurrentLinkedQueue<>());
+
+        // No logs for this client previously get the new one
         if (clientQueue == null) {
             clientQueue = clientReports.get(clientIP.getHostAddress());
         }
+
+        return clientQueue;
+    }
+
+    public void addLog(InetAddress clientIP, URL domain, String method, String responseCode) {
+        var clientQueue = getClientLogQueue(clientIP);
         Date currentDate = new Date();
         String log = dateFormat.format(currentDate) + ", IP: " + clientIP.getHostAddress() + ", Domain: " + domain.getHost() +
                 ", Resource path: " + domain.getPath() + ", Method: " + method + ", Response: " + responseCode;
@@ -48,12 +56,17 @@ public class Logger {
     }
 
     public void addLog(InetAddress clientIP, String host) {
-        var clientQueue = clientReports.putIfAbsent(clientIP.getHostAddress(), new ConcurrentLinkedQueue<>());
-        if (clientQueue == null) {
-            clientQueue = clientReports.get(clientIP.getHostAddress());
-        }
+        var clientQueue = getClientLogQueue(clientIP);
         Date currentDate = new Date();
         String log = dateFormat.format(currentDate) + ", IP: " + clientIP.getHostAddress() + ", Domain: " + host + ", Connection: HTTPS";
+        clientQueue.add(log);
+        logQueue.add(log);
+    }
+
+    public void addBlockedLog(InetAddress clientIP, String host) {
+        var clientQueue = getClientLogQueue(clientIP);
+        Date currentDate = new Date();
+        String log = dateFormat.format(currentDate) + ", IP: " + clientIP.getHostAddress() + ", Tried accessing blocked " + host;
         clientQueue.add(log);
         logQueue.add(log);
     }

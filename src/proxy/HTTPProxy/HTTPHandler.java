@@ -80,6 +80,7 @@ public final class HTTPHandler extends AbstractProxyHandler {
 
                 // Check if host is blocked
                 if (storage.isBlocked(serverIP)) {
+                    clientLogs.addBlockedLog(clientSocket.getInetAddress(), url.getHost());
                     error401();
                     return;
                 }
