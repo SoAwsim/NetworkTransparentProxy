@@ -195,11 +195,12 @@ public final class HTTPHandler extends AbstractProxyHandler {
         clientLogs.addVerboseLog("Can cache: " + cacheDate);
 
         FileOutputStream cacheFile = null;
+        File cacheLocation = null;
         if (cacheDate != null) {
             try {
-                File file = storage.getCacheInput(url);
-                if (file != null) {
-                    cacheFile = new FileOutputStream(file);
+                cacheLocation = storage.getCacheInput(url);
+                if (cacheLocation != null) {
+                    cacheFile = new FileOutputStream(cacheLocation);
                 }
             } catch (IOException e) {
                 // Disable cache saving due to IO error
@@ -212,27 +213,47 @@ public final class HTTPHandler extends AbstractProxyHandler {
             cacheFile.write(responseHeader.getBytes());
         }
 
+        int tryAttempt = 0;
         try {
-            for (int tryAttempt = 0; tryAttempt < 4; tryAttempt++) {
+            for (tryAttempt = 0; tryAttempt < 4; tryAttempt++) {
                 try {
                     if (cacheDate != null && cacheFile != null) {
                         byte [] buffer = new byte[8192];
                         int read;
                         while((read = serverIn.read(buffer, 0, 8192)) >= 0) {
                             clientOut.write(buffer, 0, read);
-                            cacheFile.write(buffer, 0, read);
+
+                            if (cacheFile != null) {
+                                try {
+                                    // Separate catch for the cache since there can a disk related error here
+                                    cacheFile.write(buffer, 0, read);
+                                } catch (IOException ex) {
+                                    // Cache file broken, delete it and do not try to cache the data again
+                                    try {
+                                        cacheFile.close();
+                                    } catch (IOException ignore) {
+                                        // ignore any exception while deleting since we will delete it anyway
+                                    }
+                                    // Delete the file if not successful then log it
+                                    if (cacheLocation.exists() && !cacheLocation.delete()) {
+                                        clientLogs.addVerboseLog("Failed to delete the cache file " + cacheLocation);
+                                    }
+                                    storage.removeBrokenCache(url);
+                                    cacheFile = null;
+                                }
+                            }
                         }
                         break;
                     } else {
                         serverIn.transferTo(clientOut);
                     }
-                } catch (SocketTimeoutException ex) {
-                    serverSocket.setSoTimeout(serverSocket.getSoTimeout() * 3);
-                    clientSocket.setSoTimeout(clientSocket.getSoTimeout() * 3);
+                } catch (SocketTimeoutException ignore) {
+                    // A possible delay on the network but since the client will not have a reply here
+                    // it will time out bellow and the loop will try to read from the server again
                 }
 
                 try {
-                    tempData = -2;
+                    tempData = -2; // Reset temp data flag
                     tempData = clientIn.read();
                     // Did the client close the connection?
                     if (tempData == -1) {
@@ -249,12 +270,23 @@ public final class HTTPHandler extends AbstractProxyHandler {
                 }
             }
         } finally {
+            // Save cache if it is open
             if (cacheFile != null) {
                 cacheFile.flush();
                 cacheFile.close();
-                storage.saveCacheIndex(url, cacheDate);
+
+                // Timeout detected possibly broken cache
+                if (tryAttempt >= 4) {
+                    if (cacheLocation.exists() && !cacheLocation.delete()) {
+                        clientLogs.addVerboseLog("Failed to delete broken cache file " + cacheLocation);
+                    }
+                    storage.removeBrokenCache(url);
+                } else {
+                    storage.saveCacheIndex(url, cacheDate);
+                }
             }
 
+            // Reset timeout values back to the default
             clientSocket.setSoTimeout(SERVER_TIMEOUT);
             serverSocket.setSoTimeout(SERVER_TIMEOUT);
         }

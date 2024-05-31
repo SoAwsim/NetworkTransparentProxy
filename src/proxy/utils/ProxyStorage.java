@@ -170,4 +170,9 @@ public class ProxyStorage {
         }
         writeLock.remove(encodedFileName);
     }
+
+    public void removeBrokenCache(URL fileName) {
+        String encodedFileName = URLEncoder.encode(fileName.getHost() + fileName.getPath(), StandardCharsets.US_ASCII);
+        writeLock.remove(encodedFileName);
+    }
 }
