@@ -143,7 +143,7 @@ public class ProxyStorage {
         return null;
     }
 
-    public File getCacheInput(URL fileName) throws IOException {
+    public File getCacheInput(URL fileName) {
         String encodedFileName = URLEncoder.encode(fileName.getHost() + fileName.getPath(), StandardCharsets.US_ASCII);
         Object prev = writeLock.putIfAbsent(encodedFileName, new Object());
         // Another thread has the lock exit
