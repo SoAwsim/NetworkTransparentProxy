@@ -5,7 +5,7 @@ import java.net.URL;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 
 public class Logger {
     private static Logger loggerInstance;
@@ -13,9 +13,9 @@ public class Logger {
 
     private static final SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-HH-dd HH:mm:ss");
 
-    private final ConcurrentHashMap<String, ConcurrentLinkedQueue<String>> clientReports = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, LinkedBlockingQueue<String>> clientReports = new ConcurrentHashMap<>();
 
-    private final ConcurrentLinkedQueue<String> logQueue = new ConcurrentLinkedQueue<>();
+    private final LinkedBlockingQueue<String> logQueue = new LinkedBlockingQueue<>();
 
     public static Logger getLogger() {
         Logger obj = loggerInstance;
@@ -35,8 +35,8 @@ public class Logger {
     private Logger() {
     }
 
-    private ConcurrentLinkedQueue<String> getClientLogQueue(InetAddress clientIP) {
-        var clientQueue = clientReports.putIfAbsent(clientIP.getHostAddress(), new ConcurrentLinkedQueue<>());
+    private LinkedBlockingQueue<String> getClientLogQueue(InetAddress clientIP) {
+        var clientQueue = clientReports.putIfAbsent(clientIP.getHostAddress(), new LinkedBlockingQueue<>());
 
         // No logs for this client previously get the new one
         if (clientQueue == null) {
@@ -77,7 +77,7 @@ public class Logger {
         logQueue.add(log);
     }
 
-    public ConcurrentLinkedQueue<String> getLogQueue() {
+    public LinkedBlockingQueue<String> getLogQueue() {
         return logQueue;
     }
 

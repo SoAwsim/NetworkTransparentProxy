@@ -4,7 +4,7 @@ import proxy.utils.Logger;
 
 import javax.swing.*;
 import java.util.List;
-import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 
 public class LogPrinter extends SwingWorker<Object, String> {
     private final Logger logger = Logger.getLogger();
@@ -16,15 +16,20 @@ public class LogPrinter extends SwingWorker<Object, String> {
 
     @Override
     protected Object doInBackground() {
-        ConcurrentLinkedQueue<String> logQueue = logger.getLogQueue();
-        while (!isCancelled()) {
-            String currentLog;
-            while ((currentLog = logQueue.poll()) != null) {
+        LinkedBlockingQueue<String> logQueue = logger.getLogQueue();
+        String currentLog;
+        try {
+            while (true) {
+                currentLog = logQueue.take();
                 publish(currentLog);
                 System.out.println(currentLog);
+                if (isCancelled()) {
+                    return null;
+                }
             }
+        } catch (InterruptedException e) {
+            return null;
         }
-        return null;
     }
 
     @Override
