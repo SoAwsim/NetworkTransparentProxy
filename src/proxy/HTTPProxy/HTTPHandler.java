@@ -6,6 +6,7 @@ import java.io.*;
 import java.net.*;
 import java.util.Date;
 
+@SuppressWarnings("MismatchedQueryAndUpdateOfCollection")
 public final class HTTPHandler extends AbstractProxyHandler {
     private boolean keepConnection = true;
     private int responseCode = -1;
