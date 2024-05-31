@@ -10,7 +10,11 @@ import java.util.Date;
 public final class HTTPHandler extends AbstractProxyHandler {
     private boolean keepConnection = true;
     private int responseCode = -1;
+
     private int tempData = -2;
+    private static final int BUFFER_SIZE = 8192; // Apache header limit is 8KB, so I also use this limit as well
+    private final byte[] sharedBuffer = new byte[BUFFER_SIZE];
+    private int bufferIndex = 0;
 
     // Throw IOException to upper level since this Runnable should not execute
     public HTTPHandler(Socket clientSocket) throws IOException {
@@ -228,15 +232,15 @@ public final class HTTPHandler extends AbstractProxyHandler {
             for (tryAttempt = 0; tryAttempt < 4; tryAttempt++) {
                 try {
                     if (cacheDate != null && cacheFile != null) {
-                        byte [] buffer = new byte[8192];
+                        bufferIndex = 0;
                         int read;
-                        while((read = serverIn.read(buffer, 0, 8192)) >= 0) {
-                            clientOut.write(buffer, 0, read);
+                        while((read = serverIn.read(sharedBuffer, 0, BUFFER_SIZE)) >= 0) {
+                            clientOut.write(sharedBuffer, 0, read);
 
                             if (cacheFile != null) {
                                 try {
                                     // Separate catch for the cache since there can a disk related error here
-                                    cacheFile.write(buffer, 0, read);
+                                    cacheFile.write(sharedBuffer, 0, read);
                                 } catch (IOException ex) {
                                     // Cache file broken, delete it and do not try to cache the data again
                                     try {
@@ -435,12 +439,10 @@ public final class HTTPHandler extends AbstractProxyHandler {
 
     @Override
     protected String readHeaderFromClient() throws IOException, ArrayIndexOutOfBoundsException {
-        // Apache header limit is 8KB, so I also use this limit as well
-        byte[] headerArr = new byte[8192];
         int temp;
-        int i = 0;
+        bufferIndex = 0;
         if (tempData != -2) {
-            headerArr[i++] = (byte) tempData;
+            sharedBuffer[bufferIndex++] = (byte) tempData;
             tempData = -2;
         }
 
@@ -453,15 +455,14 @@ public final class HTTPHandler extends AbstractProxyHandler {
                     if (temp == -1) {
                         throw new SocketException("Client Disconnected");
                     }
-                    headerArr[i++] = (byte) temp;
-                } while (headerArr[i - 1] != '\n' || headerArr[i - 2] != '\r'
-                        || headerArr[i - 3] != '\n' || headerArr[i - 4] != '\r');
+                    sharedBuffer[bufferIndex++] = (byte) temp;
+                } while (sharedBuffer[bufferIndex - 1] != '\n' || sharedBuffer[bufferIndex - 2] != '\r'
+                        || sharedBuffer[bufferIndex - 3] != '\n' || sharedBuffer[bufferIndex - 4] != '\r');
                 clientSocket.setSoTimeout(SERVER_TIMEOUT);
                 break;
             } catch (SocketTimeoutException ex) {
                 // Slow client
-                int timeout = clientSocket.getSoTimeout();
-                clientSocket.setSoTimeout(timeout * 3);
+                clientSocket.setSoTimeout(clientSocket.getSoTimeout() * 3);
             }
         }
 
@@ -470,12 +471,11 @@ public final class HTTPHandler extends AbstractProxyHandler {
             throw new SocketException("Client timeout");
         }
 
-        return new String(headerArr, 0, i);
+        return new String(sharedBuffer, 0, bufferIndex);
     }
 
     private String readHeaderFromServer() throws IOException, ArrayIndexOutOfBoundsException{
-        byte[] headerArr = new byte[8192];
-        int i = 0;
+        bufferIndex = 0;
         int temp;
 
         int tryAttempt;
@@ -487,15 +487,14 @@ public final class HTTPHandler extends AbstractProxyHandler {
                     if (temp == -1) {
                         throw new SocketException("Client Disconnected");
                     }
-                    headerArr[i++] = (byte) temp;
-                } while (headerArr[i - 1] != '\n' || headerArr[i - 2] != '\r'
-                        || headerArr[i - 3] != '\n' || headerArr[i - 4] != '\r');
+                    sharedBuffer[bufferIndex++] = (byte) temp;
+                } while (sharedBuffer[bufferIndex - 1] != '\n' || sharedBuffer[bufferIndex - 2] != '\r'
+                        || sharedBuffer[bufferIndex - 3] != '\n' || sharedBuffer[bufferIndex - 4] != '\r');
                 serverSocket.setSoTimeout(SERVER_TIMEOUT);
                 break;
             } catch (SocketTimeoutException e) {
                 // Slow server
-                int timeout = serverSocket.getSoTimeout();
-                serverSocket.setSoTimeout(timeout * 3);
+                serverSocket.setSoTimeout(serverSocket.getSoTimeout() * 3);
             }
         }
 
@@ -504,7 +503,7 @@ public final class HTTPHandler extends AbstractProxyHandler {
             throw new SocketException("Server timeout");
         }
 
-        return new String(headerArr, 0, i);
+        return new String(sharedBuffer, 0, bufferIndex);
     }
 
     private void sendErrorToClient(String response) {
