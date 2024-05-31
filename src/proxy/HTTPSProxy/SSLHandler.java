@@ -237,8 +237,6 @@ public final class SSLHandler extends AbstractProxyHandler {
         // Hostname length
         currentLength = ((sharedBuffer[bufferIndex - 2] & 0xff) << 8) | (sharedBuffer[bufferIndex - 1] & 0xff);
         bufferIndex += clientIn.read(sharedBuffer, bufferIndex, currentLength);
-        String hostname = new String(sharedBuffer, bufferIndex-currentLength, currentLength);
-        clientLogs.addVerboseLog(hostname);
-        return hostname;
+        return new String(sharedBuffer, bufferIndex-currentLength, currentLength);
     }
 }
