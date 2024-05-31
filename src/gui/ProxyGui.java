@@ -15,6 +15,7 @@ import java.awt.event.WindowListener;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class ProxyGui {
     private final JFrame mainWindow; // The main window of the application
@@ -182,7 +183,7 @@ public class ProxyGui {
                     );
                     continue;
                 }
-                String[] logs = clientLogs.getClientLog(client);
+                ConcurrentLinkedQueue<String> logs = clientLogs.getClientLog(client);
                 if (logs == null) {
                     JOptionPane.showMessageDialog(
                             mainWindow,

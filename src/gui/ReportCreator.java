@@ -2,13 +2,14 @@ package gui;
 
 import javax.swing.*;
 import java.io.*;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class ReportCreator extends SwingWorker<Integer, Object> {
     private final File selectedFile;
-    private final String[] clientLogs;
+    private final ConcurrentLinkedQueue<String> clientLogs;
     private final JFrame mainWindow;
 
-    public ReportCreator (File selectedFile, String[] clientLogs, JFrame mainWindow) {
+    public ReportCreator (File selectedFile, ConcurrentLinkedQueue<String> clientLogs, JFrame mainWindow) {
         this.selectedFile = selectedFile;
         this.clientLogs = clientLogs;
         this.mainWindow = mainWindow;
