@@ -19,6 +19,7 @@ public final class HTTPHandler extends AbstractProxyHandler {
 
     @Override
     public void run() {
+        URL url = null;
         try {
             do {
                 String header = null;
@@ -46,7 +47,6 @@ public final class HTTPHandler extends AbstractProxyHandler {
                 String method = header.substring(0, methodFinIndex);
                 String fullPath = header.substring(methodFinIndex + 1, pathFinIndex);
 
-                URL url;
                 try {
                     url = new URL(fullPath);
                 } catch (MalformedURLException e) {
@@ -126,15 +126,20 @@ public final class HTTPHandler extends AbstractProxyHandler {
                 }
             } while (keepConnection);
         } finally {
-            clientLogs.addVerboseLog("Closing HTTP connection");
-            try {
-                clientIn.close();
-                clientOut.close();
-                clientSocket.close();
+            String logMessage = "Closing HTTP connection";
+            if (url != null) {
+                logMessage += " for " + url.getHost() + url.getPath();
+            }
+            clientLogs.addVerboseLog(logMessage);
 
+            try {
+                clientSocket.close();
+            } catch (IOException ignore) {
+                // IOException does not matter at this point
+            }
+
+            try {
                 if (serverSocket != null) {
-                    serverIn.close();
-                    serverOut.close();
                     serverSocket.close();
                 }
             } catch (IOException ignore) {
