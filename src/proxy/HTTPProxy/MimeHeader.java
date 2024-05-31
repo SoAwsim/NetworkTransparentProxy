@@ -23,13 +23,13 @@ public class MimeHeader extends HashMap<String, String> {
 
     @Override
     public String toString() {
-        String str = "";
+        StringBuilder str = new StringBuilder();
         for (String key : keySet()) {
             String val = get(key);
-            str += key + ": " + val + "\r\n";
+            str.append(key).append(": ").append(val).append("\r\n");
         }
-        str += "\r\n";
-        return str;
+        str.append("\r\n");
+        return str.toString();
     }
 
 }
