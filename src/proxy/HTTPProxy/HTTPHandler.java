@@ -13,6 +13,7 @@ public final class HTTPHandler extends AbstractProxyHandler {
 
     private int tempData = -2;
     private static final int BUFFER_SIZE = 8192; // Apache header limit is 8KB, so I also use this limit as well
+    private static final int SERVER_RETRY = 4;
     private final byte[] sharedBuffer = new byte[BUFFER_SIZE];
     private int bufferIndex = 0;
 
@@ -155,7 +156,7 @@ public final class HTTPHandler extends AbstractProxyHandler {
     // Overloaded function, this one does not do caching suitable for post, options
     private void sendAllDataToClient() throws IOException {
         try {
-            for (int tryAttempt = 0; tryAttempt < 4; tryAttempt++) {
+            for (int tryAttempt = 0; tryAttempt < SERVER_RETRY; tryAttempt++) {
                 try {
                     serverIn.transferTo(clientOut);
                 } catch (SocketTimeoutException ignore) {
@@ -229,7 +230,7 @@ public final class HTTPHandler extends AbstractProxyHandler {
 
         int tryAttempt = 0;
         try {
-            for (tryAttempt = 0; tryAttempt < 4; tryAttempt++) {
+            for (tryAttempt = 0; tryAttempt < SERVER_RETRY; tryAttempt++) {
                 try {
                     if (cacheDate != null && cacheFile != null) {
                         bufferIndex = 0;
@@ -290,7 +291,7 @@ public final class HTTPHandler extends AbstractProxyHandler {
                 cacheFile.close();
 
                 // Timeout detected possibly broken cache
-                if (tryAttempt >= 4) {
+                if (tryAttempt >= SERVER_RETRY) {
                     if (cacheLocation.exists() && !cacheLocation.delete()) {
                         clientLogs.addVerboseLog("Failed to delete broken cache file " + cacheLocation);
                     }
@@ -447,7 +448,7 @@ public final class HTTPHandler extends AbstractProxyHandler {
         }
 
         int tryAttempt;
-        for (tryAttempt = 0; tryAttempt < 4; tryAttempt++) {
+        for (tryAttempt = 0; tryAttempt < SERVER_RETRY; tryAttempt++) {
             try {
                 do {
                     // readByte throws IOException instead of writing -1 to array so, I use this one
@@ -466,7 +467,7 @@ public final class HTTPHandler extends AbstractProxyHandler {
             }
         }
 
-        if (tryAttempt >= 4) {
+        if (tryAttempt >= SERVER_RETRY) {
             // Very slow client timeout the connection
             throw new SocketException("Client timeout");
         }
@@ -479,7 +480,7 @@ public final class HTTPHandler extends AbstractProxyHandler {
         int temp;
 
         int tryAttempt;
-        for (tryAttempt = 0; tryAttempt < 4; tryAttempt++) {
+        for (tryAttempt = 0; tryAttempt < SERVER_RETRY; tryAttempt++) {
             try {
                 do {
                     // readByte throws IOException instead of writing -1 to array so, I use this one
@@ -498,7 +499,7 @@ public final class HTTPHandler extends AbstractProxyHandler {
             }
         }
 
-        if (tryAttempt >= 4) {
+        if (tryAttempt >= SERVER_RETRY) {
             // Very slow server timeout the connection
             throw new SocketException("Server timeout");
         }
