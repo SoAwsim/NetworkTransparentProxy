@@ -20,10 +20,15 @@ public final class SSLHandler extends AbstractProxyHandler {
     public void run() {
         InetAddress hostAddr = null;
         boolean connectReq = false;
+        boolean logHostname;
         try {
             do {
                 // Reset buffer
                 bufferIndex = 0;
+
+                // Reset log flag
+                logHostname = false;
+
                 // If the client connected with the connect method no need to parse the contents again just relay information
                 if (!connectReq) {
                     try {
@@ -36,6 +41,7 @@ public final class SSLHandler extends AbstractProxyHandler {
                     }
 
                     try {
+                        String previousHost = null;
                         // Check if CONNECT
                         if (
                                 sharedBuffer[0] == 'C' && sharedBuffer[1] == 'O' && sharedBuffer[2] == 'N' && sharedBuffer[3] == 'N'
@@ -51,10 +57,14 @@ public final class SSLHandler extends AbstractProxyHandler {
                             }
                             int firstSpace = header.indexOf(' ');
                             int portDiv = header.indexOf(':');
-                            hostAddr = InetAddress.getByName(header.substring(firstSpace + 1, portDiv));
 
                             if (hostAddr != null) {
-                                clientLogs.addLog(clientSocket.getInetAddress(), hostAddr.getHostName());
+                                previousHost = hostAddr.getHostName();
+                            }
+
+                            hostAddr = InetAddress.getByName(header.substring(firstSpace + 1, portDiv));
+                            if (previousHost == null || !previousHost.equals(hostAddr.getHostName())) {
+                                logHostname = true;
                             }
 
                             connectReq = true;
@@ -66,11 +76,13 @@ public final class SSLHandler extends AbstractProxyHandler {
                             } catch (SocketTimeoutException ignore) {
                             }
                             if (strHost != null) {
+                                if (hostAddr != null) {
+                                    previousHost = hostAddr.getHostName();
+                                }
                                 hostAddr = InetAddress.getByName(strHost);
-                            }
-
-                            if (hostAddr != null) {
-                                clientLogs.addLog(clientSocket.getInetAddress(), hostAddr.getHostName());
+                                if (previousHost == null || !previousHost.equals(hostAddr.getHostName())) {
+                                    logHostname = true;
+                                }
                             }
                         }
                     } catch (UnknownHostException ignore) {
@@ -91,6 +103,8 @@ public final class SSLHandler extends AbstractProxyHandler {
                     // Domain is blocked drop the connection
                     clientLogs.addBlockedLog(clientSocket.getInetAddress(), hostAddr.getHostAddress());
                     return;
+                } else if (logHostname) {
+                    clientLogs.addLog(clientSocket.getInetAddress(), hostAddr.getHostName());
                 }
 
                 // Connect to the server
