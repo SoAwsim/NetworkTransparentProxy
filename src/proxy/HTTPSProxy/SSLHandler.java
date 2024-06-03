@@ -151,7 +151,7 @@ public final class SSLHandler extends AbstractProxyHandler {
                     }
                 } catch (SocketTimeoutException ignore) {
                 }
-            } while (true);
+            } while (!Thread.currentThread().isInterrupted());
         } catch (SocketTimeoutException ignore) {
             // Close the connection
         } catch (SocketException ignore) {

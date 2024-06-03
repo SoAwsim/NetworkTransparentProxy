@@ -130,7 +130,7 @@ public final class HTTPHandler extends AbstractProxyHandler {
                     // This should never reach here rethrow as runtime exception and crash the thread
                     throw new RuntimeException(ex);
                 }
-            } while (keepConnection);
+            } while (keepConnection && !Thread.currentThread().isInterrupted());
         } finally {
             String logMessage = "Closing HTTP connection";
             if (url != null) {
