@@ -159,7 +159,11 @@ public final class SSLHandler extends AbstractProxyHandler {
         } catch (IOException e) {
             throw new RuntimeException(e);
         } finally {
-            clientLogs.addVerboseLog("Closing HTTPS connection");
+            String log = "Closing HTTPS connection";
+            if (hostAddr != null) {
+                log += " for " + hostAddr.getHostName();
+            }
+            clientLogs.addVerboseLog(log);
             try {
                 clientSocket.close();
                 if (serverSocket != null) {
