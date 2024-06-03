@@ -155,6 +155,7 @@ public class ProxyGui {
                 }
                 serverPlainThread.start();
                 serverSSLThread.start();
+                clientLogs.addVerboseLog("Transparent proxy server restarted");
             } else { // Server already running
                 JOptionPane.showMessageDialog(
                         mainWindow,
